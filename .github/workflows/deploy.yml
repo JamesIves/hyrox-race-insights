@@ -1,0 +1,89 @@
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'Hyrox season number (e.g. 8 for the 2025/2026 season)'
+        required: true
+        default: '8'
+        type: string
+      location:
+        description: 'Race location. Use a hyphen for multi-word cities (e.g. Washington-DC, New-York, etc.)'
+        required: true
+        default: 'New-York'
+        type: string
+      gender:
+        description: 'Gender category (male, female, or mixed)'
+        required: true
+        default: 'male'
+        type: choice
+        options:
+          - male
+          - female
+          - mixed
+      division:
+        description: 'Race division (e.g. open, pro, doubles)'
+        required: true
+        default: 'open'
+        type: choice
+        options:
+          - open
+          - pro
+          - doubles
+      athlete:
+        description: 'Focus athlete name in "Lastname, Firstname" format (e.g. Smith, John)'
+        required: true
+        default: 'Smith, John'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Fetch race data
+        env:
+          HYROX_SEASON: ${{ inputs.season }}
+          HYROX_LOCATION: ${{ inputs.location }}
+          HYROX_GENDER: ${{ inputs.gender }}
+          HYROX_DIVISION: ${{ inputs.division }}
+          HYROX_ATHLETE: ${{ inputs.athlete }}
+        run: python stats.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.node-version
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Node dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build Angular app
+        working-directory: app
+        run: npx ng build --configuration production --base-href /hyrox-insights/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: app/dist/app/browser
