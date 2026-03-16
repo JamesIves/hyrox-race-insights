@@ -9,7 +9,7 @@
       <div>
         <h1 class="mb-1 text-3xl font-bold tracking-tight md:text-4xl">
           Hyrox {{ config?.location?.replace('-', ' ') || 'Race' }}
-          {{ config?.season ? config?.season + 2018 : '' }}
+          {{ config?.season ? config?.season! + 2018 : '' }}
         </h1>
         <p class="text-sm text-slate-300 md:text-base">
           {{
