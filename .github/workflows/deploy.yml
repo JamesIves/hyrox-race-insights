@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy Dashboard 📈
 
 on:
   workflow_dispatch:
@@ -23,7 +23,7 @@ on:
           - female
           - mixed
       division:
-        description: 'Race division (e.g. open, pro, doubles)'
+        description: 'Race division (e.g. open, pro, doubles, pro doubles)'
         required: true
         default: 'open'
         type: choice
@@ -31,6 +31,7 @@ on:
           - open
           - pro
           - doubles
+          - pro doubles
       athlete:
         description: 'Focus athlete name in "Lastname, Firstname" format (e.g. Smith, John)'
         required: true
