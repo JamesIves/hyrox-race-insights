@@ -1,0 +1,61 @@
+name: Repository Setup 🧹
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  update-repo:
+    runs-on: ubuntu-latest
+    if: github.repository != 'JamesIves/project-starter-kit'
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v4
+
+      - name: Delete Existing Labels 🗑️
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X GET \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          "https://api.github.com/repos/${{ github.repository }}/labels" | jq -r '.[].name' | while read label; do
+            encoded_label=$(echo -n "$label" | jq -sRr @uri)
+            curl -X DELETE \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/labels/$encoded_label"
+          done
+
+      - name: Add New Labels 🏷️
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jq -c '.[]' temp/labels.json | while read -r label; do
+            curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -d "$label" \
+            "https://api.github.com/repos/${{ github.repository }}/labels"
+          done
+
+      - name: Replace Placeholders 🔄
+        run: |
+          find . -type f -exec sed -i 's|{ *REPLACE_WITH_REPO_NAME *}|${{ github.repository }}|g' {} +
+          find . -type f -exec sed -i 's|{ *REPLACE_WITH_REPO_OWNER *}|${{ github.repository_owner }}|g' {} +
+
+      - name: Delete Temp Files 🗑️
+        run: |
+          rm -rf temp
+
+      - name: Delete Setup Workflow 🗑️
+        run: |
+          rm -f .github/workflows/setup.yml
+
+      - name: Commit Changes 📦
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Actions"
+          git add .
+          git commit -m "chore: 🧹 Repository Setup"
+          git push
