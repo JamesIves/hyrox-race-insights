@@ -3,7 +3,7 @@ description: Found an issue? Report it here!
 title: "bug 🐝: "
 labels: ["bug 🐝", "triage ⚠️"]
 assignees:
-  - { REPLACE_WITH_REPO_OWNER }
+  - JamesIves
 body:
   - type: markdown
     attributes:

@@ -1,9 +1,9 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ideas and Feature Requests 🚀
-    url: https://github.com/{REPLACE_WITH_REPO_NAME}/discussions/categories/ideas
+    url: https://github.com/JamesIves/hyrox-insights/discussions/categories/ideas
     about: If you have an idea or would like to make a feature request please open a discussion thread.
 
   - name: Support and Questions ❓
-    url: https://github.com/{REPLACE_WITH_REPO_NAME}/discussions/categories/q-a
+    url: https://github.com/JamesIves/hyrox-insights/discussions/categories/q-a
     about: Need help or just have a general question? Please open a discussion thread.

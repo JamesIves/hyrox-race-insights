@@ -29,6 +29,6 @@ The following steps outline how you can use this template:
 
 This template has two variables that get replaced across all file types when `setup.yml` is executed by GitHub Actions.
 
-- `{REPLACE_WITH_REPO_NAME}` - This will replace the placeholder with the full repo name (this includes the username), for example `JamesIves/project-starter-kit`.
+- `JamesIves/hyrox-insights` - This will replace the placeholder with the full repo name (this includes the username), for example `JamesIves/project-starter-kit`.
 
-- `{REPLACE_WITH_REPO_OWNER}` - This will replace placeholder with the owner of the repo, ie `MontezumaIves`.
+- `JamesIves` - This will replace placeholder with the owner of the repo, ie `MontezumaIves`.
