@@ -84,7 +84,7 @@ jobs:
         run: npx ng build --configuration production --base-href /hyrox-insights/
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: app/dist/app/browser
+          token: ${{ secrets.GITHUB_TOKEN }}
+          folder: app/dist/app/browser
