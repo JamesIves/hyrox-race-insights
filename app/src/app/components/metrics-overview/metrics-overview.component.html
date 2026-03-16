@@ -1,0 +1,73 @@
+@if (comparisonData.length > 0) {
+  <div
+    class="mb-6 rounded-xl border border-slate-700/70 bg-slate-900 p-6 shadow-xl"
+  >
+    <div class="mb-6 flex items-center gap-2">
+      <h2 class="text-xl font-semibold text-slate-100">
+        Performance vs Average
+      </h2>
+      <button
+        type="button"
+        class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 text-slate-300 hover:border-sky-400 hover:text-sky-300"
+        data-tooltip-target="tooltip-performance-overview"
+        data-tooltip-placement="right"
+        aria-label="Performance chart explanation"
+      >
+        ?
+      </button>
+    </div>
+    <div
+      id="tooltip-performance-overview"
+      role="tooltip"
+      class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 opacity-0 shadow-xs transition-opacity duration-200"
+    >
+      Left chart shows raw time trend (lower is better). Right chart shows
+      performance index where 100 = field average and higher is better.
+      <div class="tooltip-arrow" data-popper-arrow></div>
+    </div>
+
+    <div class="grid grid-cols-1 gap-6">
+      <div class="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
+        <h3 class="mb-3 text-sm font-semibold text-slate-100">
+          Time Trend by Metric
+        </h3>
+        @if (trendChartOptions) {
+          <apx-chart
+            [series]="trendChartOptions.series"
+            [chart]="trendChartOptions.chart"
+            [xaxis]="trendChartOptions.xaxis"
+            [yaxis]="trendChartOptions.yaxis"
+            [colors]="trendChartOptions.colors"
+            [stroke]="trendChartOptions.stroke"
+            [markers]="trendChartOptions.markers"
+            [tooltip]="trendChartOptions.tooltip"
+            [legend]="trendChartOptions.legend"
+            [grid]="trendChartOptions.grid"
+            [dataLabels]="trendChartOptions.dataLabels"
+          ></apx-chart>
+        }
+      </div>
+
+      <div class="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
+        <h3 class="mb-3 text-sm font-semibold text-slate-100">
+          Relative Performance Index
+        </h3>
+        @if (radarChartOptions) {
+          <apx-chart
+            [series]="radarChartOptions.series"
+            [chart]="radarChartOptions.chart"
+            [xaxis]="radarChartOptions.xaxis"
+            [yaxis]="radarChartOptions.yaxis"
+            [colors]="radarChartOptions.colors"
+            [stroke]="radarChartOptions.stroke"
+            [fill]="radarChartOptions.fill!"
+            [markers]="radarChartOptions.markers"
+            [tooltip]="radarChartOptions.tooltip"
+            [legend]="radarChartOptions.legend"
+            [dataLabels]="radarChartOptions.dataLabels"
+          ></apx-chart>
+        }
+      </div>
+    </div>
+  </div>
+}

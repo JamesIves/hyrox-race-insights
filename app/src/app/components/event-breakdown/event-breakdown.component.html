@@ -1,0 +1,108 @@
+@if (overallChart.length > 0 || eventCharts.length > 0) {
+  <!-- Overall Performance -->
+  @if (overallChart.length > 0) {
+    <div
+      class="mb-6 rounded-xl border border-slate-700/70 bg-slate-900 p-6 shadow-xl"
+    >
+      <h2 class="mb-4 text-xl font-semibold text-slate-100">
+        Overall Performance
+      </h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        @for (item of overallChart; track item.label) {
+          <div class="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
+            <div class="mb-3 text-sm font-medium text-slate-300">
+              {{ item.label }}
+            </div>
+            <div class="mb-2">
+              <span class="text-xs text-slate-400">Avg:</span>
+              <span class="ml-2 text-sm font-semibold text-slate-100">{{
+                formatTimeFn(item.average)
+              }}</span>
+            </div>
+            <div>
+              <span class="text-xs text-slate-400">You:</span>
+              <span class="ml-2 text-sm font-semibold text-sky-400">{{
+                formatTimeFn(item.athlete)
+              }}</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Event Breakdowns -->
+  @for (event of eventCharts; track event.metric.key) {
+    <div
+      class="mb-6 rounded-xl border border-slate-700/70 bg-slate-900 p-6 shadow-xl"
+    >
+      <div class="mb-3 flex items-center gap-2">
+        <h3 class="text-lg font-semibold text-slate-100">{{ event.label }}</h3>
+        <button
+          type="button"
+          class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 text-slate-300 hover:border-sky-400 hover:text-sky-300"
+          [attr.data-tooltip-target]="
+            'tooltip-event-breakdown-' + event.metric.key
+          "
+          data-tooltip-placement="right"
+          aria-label="Event chart explanation"
+        >
+          ?
+        </button>
+        <div
+          [id]="'tooltip-event-breakdown-' + event.metric.key"
+          role="tooltip"
+          class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 opacity-0 shadow-xs transition-opacity duration-200"
+        >
+          Curve shows field time distribution by percentile. Red marker shows
+          your exact time and placement.
+          <div class="tooltip-arrow" data-popper-arrow></div>
+        </div>
+      </div>
+      <div class="mb-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+        <div
+          class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2"
+        >
+          <span class="text-slate-400">Your Time:</span>
+          <span class="ml-2 font-semibold text-sky-400">{{
+            formatTimeFn(event.athlete)
+          }}</span>
+        </div>
+        <div
+          class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2"
+        >
+          <span class="text-slate-400">Field Avg:</span>
+          <span class="ml-2 font-semibold text-slate-100">{{
+            formatTimeFn(event.average)
+          }}</span>
+        </div>
+        <div
+          class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2"
+        >
+          <span class="text-slate-400">Place:</span>
+          <span class="ml-2 font-semibold text-slate-100"
+            >{{ event.athleteRank }} / {{ event.fieldSize }}</span
+          >
+        </div>
+        <div
+          class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2"
+        >
+          <span class="text-slate-400">Percentile:</span>
+          <span
+            class="ml-2 font-semibold"
+            [ngClass]="
+              event.athletePercentile <= 25
+                ? 'text-emerald-300'
+                : event.athletePercentile <= 60
+                  ? 'text-amber-300'
+                  : 'text-rose-300'
+            "
+          >
+            {{ event.athletePercentile | number: '1.0-1' }}%
+          </span>
+        </div>
+      </div>
+      <app-event-chart [event]="event"></app-event-chart>
+    </div>
+  }
+}

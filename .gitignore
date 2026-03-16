@@ -146,3 +146,4 @@ node_modules/
 app/public/data/race.json
 app/public/data/heart_rate.json
 app/public/data/config.json
+app/app/vite

@@ -1,0 +1,121 @@
+@if (hrPoints.length > 0) {
+  <div
+    class="mb-6 rounded-xl border border-slate-700/70 bg-slate-900 p-6 shadow-xl"
+  >
+    <div class="mb-6 flex items-center gap-2">
+      <h2 class="text-xl font-semibold text-slate-100">Heart Rate Insights</h2>
+      <button
+        type="button"
+        class="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-600 text-slate-300 hover:border-sky-400 hover:text-sky-300"
+        data-tooltip-target="tooltip-hr-insights"
+        data-tooltip-placement="right"
+        aria-label="Heart rate insights explanation"
+      >
+        ?
+      </button>
+    </div>
+    <div
+      id="tooltip-hr-insights"
+      role="tooltip"
+      class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 opacity-0 shadow-xs transition-opacity duration-200"
+    >
+      Heart-rate data from Apple Watch overlaid on race segments.
+      <div class="tooltip-arrow" data-popper-arrow></div>
+    </div>
+
+    <div class="space-y-6">
+      <!-- HR Timeline -->
+      <div class="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
+        <h3 class="mb-3 text-sm font-semibold text-slate-100">
+          Heart Rate Timeline
+        </h3>
+        @if (timelineChartOptions) {
+          <apx-chart
+            [series]="timelineChartOptions.series"
+            [chart]="timelineChartOptions.chart"
+            [colors]="timelineChartOptions.colors"
+            [stroke]="timelineChartOptions.stroke"
+            [fill]="timelineChartOptions.fill"
+            [markers]="timelineChartOptions.markers"
+            [dataLabels]="timelineChartOptions.dataLabels"
+            [grid]="timelineChartOptions.grid"
+            [xaxis]="timelineChartOptions.xaxis"
+            [yaxis]="timelineChartOptions.yaxis"
+            [tooltip]="timelineChartOptions.tooltip"
+            [annotations]="timelineChartOptions.annotations"
+          ></apx-chart>
+        }
+      </div>
+
+      <!-- Per-Station HR -->
+      @if (stationChartOptions) {
+        <div class="rounded-lg border border-slate-700 bg-slate-950/70 p-4">
+          <h3 class="mb-3 text-sm font-semibold text-slate-100">
+            Heart Rate by Event
+          </h3>
+          <apx-chart
+            [series]="stationChartOptions.series"
+            [chart]="stationChartOptions.chart"
+            [colors]="stationChartOptions.colors"
+            [dataLabels]="stationChartOptions.dataLabels"
+            [grid]="stationChartOptions.grid"
+            [xaxis]="stationChartOptions.xaxis"
+            [yaxis]="stationChartOptions.yaxis"
+            [tooltip]="stationChartOptions.tooltip"
+            [legend]="stationChartOptions.legend"
+          ></apx-chart>
+        </div>
+      }
+
+      <!-- Summary Stats -->
+      @if (hrPoints.length > 0) {
+        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div
+            class="rounded-lg border border-slate-700 bg-slate-950/70 p-4 text-center"
+          >
+            <div class="mb-1 text-xs tracking-wide text-slate-400 uppercase">
+              Avg HR
+            </div>
+            <div class="text-2xl font-bold text-sky-300">
+              {{ overallAvgHr }}
+            </div>
+            <div class="text-xs text-slate-500">bpm</div>
+          </div>
+          <div
+            class="rounded-lg border border-slate-700 bg-slate-950/70 p-4 text-center"
+          >
+            <div class="mb-1 text-xs tracking-wide text-slate-400 uppercase">
+              Max HR
+            </div>
+            <div class="text-2xl font-bold text-rose-300">
+              {{ overallMaxHr }}
+            </div>
+            <div class="text-xs text-slate-500">bpm</div>
+          </div>
+          <div
+            class="rounded-lg border border-slate-700 bg-slate-950/70 p-4 text-center"
+          >
+            <div class="mb-1 text-xs tracking-wide text-slate-400 uppercase">
+              Min HR
+            </div>
+            <div class="text-2xl font-bold text-emerald-300">
+              {{ overallMinHr }}
+            </div>
+            <div class="text-xs text-slate-500">bpm</div>
+          </div>
+          <div
+            class="rounded-lg border border-slate-700 bg-slate-950/70 p-4 text-center"
+          >
+            <div class="mb-1 text-xs tracking-wide text-slate-400 uppercase">
+              Data Points
+            </div>
+            <div class="text-2xl font-bold text-slate-200">
+              {{ hrPoints.length }}
+            </div>
+            <div class="text-xs text-slate-500">readings</div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

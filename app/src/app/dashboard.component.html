@@ -1,0 +1,89 @@
+<div class="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+  <!-- Header -->
+  <header
+    class="border-b border-slate-700/70 bg-linear-to-r from-slate-900 to-slate-800 py-8 text-white shadow-lg md:py-10"
+  >
+    <div
+      class="mx-auto flex max-w-6xl items-center justify-between px-4 md:px-6"
+    >
+      <div>
+        <h1 class="mb-1 text-3xl font-bold tracking-tight md:text-4xl">
+          Hyrox {{ config?.location?.replace('-', ' ') || 'Race' }}
+          {{ config?.season ? config.season + 2018 : '' }}
+        </h1>
+        <p class="text-sm text-slate-300 md:text-base">
+          {{
+            config
+              ? (config.gender | titlecase) +
+                ' ' +
+                (config.division | titlecase) +
+                ' Division Dashboard'
+              : 'Dashboard'
+          }}
+        </p>
+      </div>
+      <div
+        class="flex flex-col items-end rounded-lg border border-slate-600/70 bg-slate-800/70 px-4 py-3 backdrop-blur"
+      >
+        <span
+          class="mb-1 text-xs font-semibold tracking-wider text-slate-300 uppercase"
+          >Focus Athlete</span
+        >
+        <span class="text-lg font-semibold md:text-xl">{{ focalAthlete }}</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-6 md:py-12">
+    <!-- Loading State -->
+    @if (loading) {
+      <div class="flex min-h-screen items-center justify-center">
+        <div class="text-center">
+          <div class="text-lg text-slate-300">Loading…</div>
+        </div>
+      </div>
+    }
+
+    <!-- Error State -->
+    @if (error && !loading) {
+      <div class="flex min-h-screen items-center justify-center">
+        <div class="text-center">
+          <div class="text-lg text-red-400">{{ error }}</div>
+        </div>
+      </div>
+    }
+
+    <!-- Dashboard Content -->
+    @if (!loading && !error && raceData.length && focusAthlete) {
+      <app-metrics-overview
+        [raceData]="raceData"
+        [focusAthlete]="focusAthlete"
+      ></app-metrics-overview>
+      <app-percentile-chart
+        [raceData]="raceData"
+        [focusAthlete]="focusAthlete"
+      ></app-percentile-chart>
+      <app-race-insights
+        [raceData]="raceData"
+        [focusAthlete]="focusAthlete"
+      ></app-race-insights>
+      <app-heart-rate-insights
+        [focusAthlete]="focusAthlete"
+      ></app-heart-rate-insights>
+      <app-event-breakdown
+        [raceData]="raceData"
+        [focusAthlete]="focusAthlete"
+      ></app-event-breakdown>
+    }
+
+    <!-- No Data State -->
+    @if (!loading && !error && !raceData.length) {
+      <div class="flex min-h-screen items-center justify-center">
+        <div class="text-center">
+          <div class="text-lg text-slate-300">No data available</div>
+        </div>
+      </div>
+    }
+  </main>
+</div>
