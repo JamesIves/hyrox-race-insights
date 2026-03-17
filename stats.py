@@ -16,6 +16,7 @@ import json
 import os
 from typing import Dict, List, Tuple, Optional
 
+import pandas as pd
 import pyrox
 import plotille
 from rich.console import Console
@@ -71,6 +72,8 @@ class HyroxAnalyzer:
         self.athlete_record: Optional[Dict] = None
         self.averages: Dict[str, float] = {}
         self.heatmap_data: List[Tuple[str, float, float]] = []
+        self.heart_rate_data: Optional[pd.DataFrame] = None
+        self.total_race_time: float = 0.0
 
     def fetch_data(self) -> None:
         """Fetch race data from Pyrox API."""
@@ -91,6 +94,7 @@ class HyroxAnalyzer:
         self.race_records = race.to_dict(orient="records")
         self._find_athlete()
         self._calculate_averages()
+        self._load_heart_rate_data()
 
     def _find_athlete(self) -> None:
         """Locate athlete record in race data."""
@@ -113,6 +117,21 @@ class HyroxAnalyzer:
             times = [r.get(field, 0) for r in self.race_records if r.get(field) is not None]
             if times:
                 self.averages[field] = sum(times) / len(times)
+
+    def _load_heart_rate_data(self) -> None:
+        """Load heart rate data from CSV if it exists."""
+        heart_rate_file = "heart_rate.csv"
+        if not os.path.exists(heart_rate_file):
+            return
+
+        try:
+            self.heart_rate_data = pd.read_csv(heart_rate_file)
+            
+            # Calculate total race time from athlete stats
+            if self.athlete_record and "total_time" in self.athlete_record:
+                self.total_race_time = self.athlete_record["total_time"]
+        except Exception as e:
+            self.console.print(f"[yellow]Warning:[/yellow] Could not load heart rate data: {e}", style="dim")
 
     def display_summary_tables(self) -> None:
         """Display per-station averages and athlete comparison tables."""
@@ -193,6 +212,8 @@ class HyroxAnalyzer:
         self._display_split_analysis()
         self._display_opportunities()
         self._display_percentiles()
+        if self.heart_rate_data is not None:
+            self._display_heart_rate_analytics()
 
     def _display_performance_index(self) -> None:
         """Show normalized performance index (>100 = faster than average)."""
@@ -453,6 +474,158 @@ class HyroxAnalyzer:
 
         self.console.print()
 
+    def _display_heart_rate_analytics(self) -> None:
+        """Display heart rate analytics if available."""
+        self.console.print("\n" + "=" * 88)
+        self.console.print("HEART RATE ANALYTICS", justify="center", style="bold cyan")
+        self.console.print("=" * 88 + "\n")
+
+        self._display_heart_rate_per_station()
+        self._display_heart_rate_spikes()
+
+    def _display_heart_rate_per_station(self) -> None:
+        """Show average heart rate per station."""
+        if self.heart_rate_data is None or len(self.heart_rate_data) == 0:
+            return
+
+        self.console.print(
+            "[bold cyan]1. HEART RATE BY STATION[/bold cyan] — Average HR During Each Event",
+            style="dim",
+        )
+        self.console.print(
+            "   [dim]Understanding intensity: Higher HR = more intense effort.[/dim]"
+        )
+
+        # Use the "Avg (count/min)" column
+        if "Avg (count/min)" not in self.heart_rate_data.columns:
+            self.console.print("  [yellow]'Avg (count/min)' column not found in heart_rate.csv[/yellow]")
+            return
+
+        try:
+            hr_values = pd.to_numeric(self.heart_rate_data["Avg (count/min)"], errors="coerce").dropna().tolist()
+            max_values = pd.to_numeric(self.heart_rate_data["Max (count/min)"], errors="coerce").dropna().tolist()
+        except Exception:
+            self.console.print("  [yellow]Could not parse heart rate values[/yellow]")
+            return
+
+        if not hr_values:
+            return
+
+        # Cut off data at total race time (data trails at end, not start)
+        # Assuming 1 HR reading per minute
+        if self.total_race_time > 0:
+            hr_during_race = hr_values[:int(self.total_race_time) + 1]
+            max_during_race = max_values[:int(self.total_race_time) + 1]
+        else:
+            hr_during_race = hr_values
+            max_during_race = max_values
+
+        # Calculate HR per station based on cumulative time
+        station_hr_data = []
+        cumulative_time = 0
+
+        for field, station_name in self.STATIONS.items():
+            if self.athlete_record:
+                station_time = self.athlete_record.get(field)
+                if station_time is not None:
+                    start_idx = int(cumulative_time)
+                    end_idx = int(cumulative_time + station_time)
+                    
+                    if start_idx < len(hr_during_race) and end_idx <= len(hr_during_race):
+                        station_hrs = hr_during_race[start_idx:end_idx]
+                        station_maxs = max_during_race[start_idx:end_idx]
+                        if station_hrs:
+                            avg_hr = sum(station_hrs) / len(station_hrs)
+                            max_hr = max(station_maxs) if station_maxs else max(station_hrs)
+                            station_hr_data.append((station_name, avg_hr, max_hr))
+                    
+                    cumulative_time += station_time
+
+        if station_hr_data:
+            max_avg_hr = max(hr for _, hr, _ in station_hr_data)
+            for station_name, avg_hr, max_hr in sorted(station_hr_data, key=lambda x: x[1], reverse=True):
+                bar_length = int((avg_hr / max_avg_hr) * 30)
+                bar = "█" * bar_length
+                self.console.print(
+                    f"  {station_name:20} {bar} [yellow]Avg: {avg_hr:.0f}[/yellow] bpm "
+                    f"[red](peak: {max_hr:.0f})[/red]"
+                )
+
+        self.console.print()
+
+    def _display_heart_rate_spikes(self) -> None:
+        """Show where heart rate spiked the most."""
+        if self.heart_rate_data is None or len(self.heart_rate_data) == 0:
+            return
+
+        self.console.print(
+            "[bold cyan]2. HEART RATE SPIKES[/bold cyan] — Peak Exertion Moments",
+            style="dim",
+        )
+        self.console.print(
+            "   [dim]Identify which stations caused the most intense cardiovascular effort.[/dim]"
+        )
+
+        # Use the "Max (count/min)" column for peak HR
+        if "Max (count/min)" not in self.heart_rate_data.columns:
+            self.console.print("  [yellow]'Max (count/min)' column not found in heart_rate.csv[/yellow]")
+            return
+
+        try:
+            max_values = pd.to_numeric(self.heart_rate_data["Max (count/min)"], errors="coerce").dropna().tolist()
+            avg_values = pd.to_numeric(self.heart_rate_data["Avg (count/min)"], errors="coerce").dropna().tolist()
+        except Exception:
+            self.console.print("  [yellow]Could not parse heart rate values[/yellow]")
+            return
+
+        if not max_values:
+            return
+
+        # Cut off data at total race time
+        if self.total_race_time > 0:
+            max_during_race = max_values[:int(self.total_race_time) + 1]
+            avg_during_race = avg_values[:int(self.total_race_time) + 1]
+        else:
+            max_during_race = max_values
+            avg_during_race = avg_values
+
+        # Find HR spikes per station
+        spike_data = []
+        cumulative_time = 0
+
+        for field, station_name in self.STATIONS.items():
+            if self.athlete_record:
+                station_time = self.athlete_record.get(field)
+                if station_time is not None:
+                    start_idx = int(cumulative_time)
+                    end_idx = int(cumulative_time + station_time)
+                    
+                    if start_idx < len(max_during_race) and end_idx <= len(max_during_race):
+                        station_maxs = max_during_race[start_idx:end_idx]
+                        station_avgs = avg_during_race[start_idx:end_idx]
+                        if station_maxs:
+                            max_hr = max(station_maxs)
+                            avg_hr = sum(station_avgs) / len(station_avgs)
+                            spike = max_hr - avg_hr  # Spike magnitude
+                            spike_data.append((station_name, max_hr, spike))
+                    
+                    cumulative_time += station_time
+
+        if spike_data:
+            # Show top 3 spikes
+            top_spikes = sorted(spike_data, key=lambda x: x[1], reverse=True)[:3]
+            max_spike_hr = max(hr for _, hr, _ in spike_data)
+            
+            for i, (station_name, peak_hr, spike_magnitude) in enumerate(top_spikes, 1):
+                bar_length = int((peak_hr / max_spike_hr) * 30)
+                bar = "█" * bar_length
+                self.console.print(
+                    f"  {i}. [red bold]{station_name:20}[/red bold] [red]{bar}[/red] "
+                    f"[red bold]Peak: {peak_hr:.0f}[/red bold] bpm"
+                )
+
+        self.console.print()
+
     def save_data(self) -> None:
         """Save race data and config to JSON files."""
         os.makedirs(self.output_dir, exist_ok=True)
@@ -490,10 +663,10 @@ def main() -> None:
     
     # Load configuration from environment
     season = int(os.environ.get("HYROX_SEASON", "8"))
-    location = os.environ.get("HYROX_LOCATION", "Washington-DC")
+    location = os.environ.get("HYROX_LOCATION", "London")
     gender = os.environ.get("HYROX_GENDER", "male")
     division = os.environ.get("HYROX_DIVISION", "open")
-    athlete = os.environ.get("HYROX_ATHLETE", "Ives, James")
+    athlete = os.environ.get("HYROX_ATHLETE", "Smith, John")
 
     # Create analyzer and run analysis
     analyzer = HyroxAnalyzer(
