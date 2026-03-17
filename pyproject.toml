@@ -18,11 +18,13 @@ classifiers = [
 ]
 dependencies = [
     # Add your dependencies here, e.g., "requests>=2.25.0"
-    "pyrox-client (>=0.2.3,<0.3.0)",
-    "pandas",
-    "dash",
-    "plotly",
-    "dash-bootstrap-components"
+    "pyrox-client>=0.2.3",
+    "pandas>=2.0",
+    "plotille>=3.7.2",
+    "rich>=13.0.0",
+    "dash>=2.0",
+    "plotly>=5.0",
+    "dash-bootstrap-components>=1.0"
 ]
 
 [project.optional-dependencies]

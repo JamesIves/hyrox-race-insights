@@ -42,7 +42,8 @@ permissions:
   contents: write
 
 jobs:
-  build-and-deploy:
+  get-stats:
+    name: Get Stats 📊
     runs-on: ubuntu-latest
 
     steps:
