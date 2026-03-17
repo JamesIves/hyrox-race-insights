@@ -1,4 +1,4 @@
-name: Deploy Dashboard 📈
+name: Generate Stats 📈
 
 on:
   workflow_dispatch:
@@ -67,24 +67,3 @@ jobs:
           HYROX_DIVISION: ${{ inputs.division }}
           HYROX_ATHLETE: ${{ inputs.athlete }}
         run: python stats.py
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: app/.node-version
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install Node dependencies
-        working-directory: app
-        run: npm ci
-
-      - name: Build Angular app
-        working-directory: app
-        run: npx ng build --configuration production --base-href /hyrox-insights/
-
-      - name: Deploy to GitHub Pages
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          folder: app/dist/app/browser
