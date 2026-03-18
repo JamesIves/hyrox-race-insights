@@ -68,6 +68,8 @@ Date/Time,Min (count/min),Max (count/min),Avg (count/min)
 > [!TIP]
 > Only the `Avg (count/min)` and `Max (count/min)` columns are required — extra columns are ignored.
 
+## Preview 📸
+
 ![Screenshot](./.github/docs/screenshot.png)
 
 ![Screenshot](./.github/docs/screenshot2.png)
