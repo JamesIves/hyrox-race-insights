@@ -292,6 +292,7 @@ class HyroxAnalyzer:
             "   [dim]Scores > 100 indicate faster performance. "
             "Compare strengths and weaknesses at a glance.[/dim]"
         )
+        self.console.print()
 
         # For each event, compute: (field_avg / athlete_time) * 100
         # A score > 100 means the athlete was faster than the field average.
@@ -321,6 +322,7 @@ class HyroxAnalyzer:
             "   [dim]Red = Losing time relative to field average. "
             "Green = Gaining time. Focus on red events to improve.[/dim]"
         )
+        self.console.print()
 
         # Each entry is (event_name, delta_seconds, delta_percent)
         self.heatmap_data = self._compute_event_deltas()
@@ -361,6 +363,7 @@ class HyroxAnalyzer:
             "   [dim]Each row shows how that event shifted your gap vs the field, "
             "and your running total. Green = ahead, Red = behind.[/dim]"
         )
+        self.console.print()
 
         cumulative_data: list[tuple[str, float, float]] = []
         running = 0.0
@@ -406,6 +409,7 @@ class HyroxAnalyzer:
             "   [dim]Breakdown: Are you slower on runs or at stations? "
             "This identifies your weakest area.[/dim]"
         )
+        self.console.print()
 
         run_delta = 0.0
         station_delta = 0.0
@@ -446,6 +450,7 @@ class HyroxAnalyzer:
         self.console.print(
             "   [dim]Focus on these events to make the biggest performance gains.[/dim]"
         )
+        self.console.print()
 
         # Filter to events where the athlete was slower, sorted by biggest time loss first
         opportunities = sorted(
@@ -481,6 +486,7 @@ class HyroxAnalyzer:
         self.console.print(
             "   [dim]Your ranking at each station. Lower percentile = faster than average.[/dim]"
         )
+        self.console.print()
 
         # Build (event_name, percentile) pairs, skipping events without data
         percentile_data = [
@@ -523,6 +529,7 @@ class HyroxAnalyzer:
         self.console.print(
             "   [dim]Understanding intensity: Higher HR = more intense effort.[/dim]"
         )
+        self.console.print()
 
         event_hr_data = self._hr_per_event(self._hr_avg_values, self._hr_max_values)
 
@@ -555,6 +562,7 @@ class HyroxAnalyzer:
         self.console.print(
             "   [dim]Identify which events caused the most intense cardiovascular effort.[/dim]"
         )
+        self.console.print()
 
         spike_data = self._hr_per_event(self._hr_avg_values, self._hr_max_values)
 
