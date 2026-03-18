@@ -1,15 +1,17 @@
 """
-Hyrox Race Data Analysis Tool
+Hyrox Race Insights ✨
 
 Fetches race data from Pyrox API and displays comprehensive terminal-based
 visualizations comparing an athlete's performance to field averages.
 
+Built by Jives (https://Jives.dev) with pyrox-client (https://vmatei2.github.io/pyrox-client/) 
+
 Environment Variables:
     HYROX_SEASON: Race season (default: "8")
-    HYROX_LOCATION: Race location (default: "Washington-DC")
+    HYROX_LOCATION: Race location, locations with two words should be hyphenated (default: "Stockholm")
     HYROX_GENDER: Athlete gender (default: "male")
     HYROX_DIVISION: Race division (default: "open")
-    HYROX_ATHLETE: Athlete name in "Last, First" format (default: "Ives, James")
+    HYROX_ATHLETE: Athlete name as it appears on the Hyrox results board, typically "Last, First" format. Can also be "First Last, First Last" for doubles (default: "Smith, John")
 """
 
 import json
@@ -18,7 +20,6 @@ from typing import Dict, List, Tuple, Optional
 
 import pandas as pd
 import pyrox
-import plotille
 from rich.console import Console
 from rich.table import Table
 
@@ -26,18 +27,29 @@ from rich.table import Table
 class HyroxAnalyzer:
     """Analyzes Hyrox race data and generates performance insights."""
 
-    # Station field names and display labels
-    STATIONS = {
+    # All events in race order (Run, Station, Run, Station, ...)
+    ALL_EVENTS = {
+        "run1_time": "Run 1",
         "skiErg_time": "SkiErg",
+        "run2_time": "Run 2",
         "sledPush_time": "Sled Push",
+        "run3_time": "Run 3",
         "sledPull_time": "Sled Pull",
+        "run4_time": "Run 4",
         "burpeeBroadJump_time": "Burpee Broad Jump",
+        "run5_time": "Run 5",
         "rowErg_time": "RowErg",
+        "run6_time": "Run 6",
         "farmersCarry_time": "Farmer's Carry",
+        "run7_time": "Run 7",
         "sandbagLunges_time": "Sandbag Lunges",
-        "wallBall_time": "Wall Ball",
+        "run8_time": "Run 8",
+        "wallBalls_time": "Wall Balls",
         "roxzone_time": "Roxzone",
     }
+
+    # Derived subsets
+    RUN_FIELDS = {k for k in ALL_EVENTS if k.startswith("run")}
 
     def __init__(
         self,
@@ -46,7 +58,7 @@ class HyroxAnalyzer:
         gender: str,
         division: str,
         athlete_name: str,
-        output_dir: str = "app/public/data",
+        output_dir: str = "data",
     ):
         """
         Initialize the analyzer with race parameters.
@@ -74,6 +86,8 @@ class HyroxAnalyzer:
         self.heatmap_data: List[Tuple[str, float, float]] = []
         self.heart_rate_data: Optional[pd.DataFrame] = None
         self.total_race_time: float = 0.0
+        self._hr_avg_values: List[float] = []
+        self._hr_max_values: List[float] = []
 
     def fetch_data(self) -> None:
         """Fetch race data from Pyrox API."""
@@ -111,10 +125,10 @@ class HyroxAnalyzer:
             )
 
     def _calculate_averages(self) -> None:
-        """Calculate field average times for each station."""
+        """Calculate field average times for each event."""
         self.averages = {}
-        for field, _ in self.STATIONS.items():
-            times = [r.get(field, 0) for r in self.race_records if r.get(field) is not None]
+        for field in self.ALL_EVENTS:
+            times = [r[field] for r in self.race_records if r.get(field) is not None]
             if times:
                 self.averages[field] = sum(times) / len(times)
 
@@ -126,12 +140,34 @@ class HyroxAnalyzer:
 
         try:
             self.heart_rate_data = pd.read_csv(heart_rate_file)
-            
-            # Calculate total race time from athlete stats
+
             if self.athlete_record and "total_time" in self.athlete_record:
                 self.total_race_time = self.athlete_record["total_time"]
+
+            self._parse_heart_rate_columns()
         except Exception as e:
-            self.console.print(f"[yellow]Warning:[/yellow] Could not load heart rate data: {e}", style="dim")
+            self.console.print(
+                f"[yellow]Warning:[/yellow] Could not load heart rate data: {e}",
+                style="dim",
+            )
+
+    def _parse_heart_rate_columns(self) -> None:
+        """Parse and trim heart rate columns to race duration."""
+        if self.heart_rate_data is None:
+            return
+
+        for col, target in [
+            ("Avg (count/min)", "_hr_avg_values"),
+            ("Max (count/min)", "_hr_max_values"),
+        ]:
+            if col not in self.heart_rate_data.columns:
+                return
+            values = pd.to_numeric(
+                self.heart_rate_data[col], errors="coerce"
+            ).dropna().tolist()
+            if self.total_race_time > 0:
+                values = values[: int(self.total_race_time) + 1]
+            setattr(self, target, values)
 
     def display_summary_tables(self) -> None:
         """Display per-station averages and athlete comparison tables."""
@@ -140,26 +176,26 @@ class HyroxAnalyzer:
             self._display_athlete_comparison_table()
 
     def _display_field_averages_table(self) -> None:
-        """Show field average times for each station."""
+        """Show field average times for each event."""
         table = Table(
             title=(
-                f"Per-Station Averages - {self.location} Season {self.season} "
+                f"Per-Event Averages - {self.location} Season {self.season} "
                 f"({self.gender.capitalize()} {self.division.capitalize()})"
             )
         )
-        table.add_column("Station", style="cyan")
+        table.add_column("Event", style="cyan")
         table.add_column("Average Time", style="magenta")
         table.add_column("Min", style="green")
         table.add_column("Max", style="red")
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             times = [r.get(field) for r in self.race_records if r.get(field) is not None]
             if times:
                 avg = sum(times) / len(times)
                 min_time = min(times)
                 max_time = max(times)
                 table.add_row(
-                    station_name, f"{avg:.2f}m", f"{min_time:.2f}m", f"{max_time:.2f}m"
+                    event_name, f"{avg:.2f}m", f"{min_time:.2f}m", f"{max_time:.2f}m"
                 )
 
         self.console.print(table)
@@ -168,13 +204,13 @@ class HyroxAnalyzer:
     def _display_athlete_comparison_table(self) -> None:
         """Show athlete times vs field averages."""
         table = Table(title=f"Athlete Comparison - {self.athlete_name}")
-        table.add_column("Station", style="cyan")
+        table.add_column("Event", style="cyan")
         table.add_column("Your Time", style="yellow")
         table.add_column("Field Avg", style="magenta")
         table.add_column("Delta", style="white")
         table.add_column("vs Avg %", style="white")
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time is not None and avg_time is not None:
@@ -184,7 +220,7 @@ class HyroxAnalyzer:
                 pct_str = f"{delta_pct:+.1f}%"
                 delta_color = "green" if delta < 0 else "red"
                 table.add_row(
-                    station_name,
+                    event_name,
                     f"{athlete_time:.2f}m",
                     f"{avg_time:.2f}m",
                     f"[{delta_color}]{delta_str}[/{delta_color}]",
@@ -202,9 +238,9 @@ class HyroxAnalyzer:
             )
             return
 
-        self.console.print("\n" + "=" * 88)
-        self.console.print("PERFORMANCE ANALYTICS", justify="center", style="bold cyan")
-        self.console.print("=" * 88 + "\n")
+        self.console.print()
+        self.console.print("[bold magenta]━━━ PERFORMANCE ANALYTICS ━━━[/bold magenta]")
+        self.console.print()
 
         self._display_performance_index()
         self._display_heatmap()
@@ -218,9 +254,8 @@ class HyroxAnalyzer:
     def _display_performance_index(self) -> None:
         """Show normalized performance index (>100 = faster than average)."""
         self.console.print(
-            "[bold cyan]1. PERFORMANCE INDEX[/bold cyan] — "
+            "[bold yellow]1. PERFORMANCE INDEX[/bold yellow] — "
             "Normalized Performance (100 = Field Average)",
-            style="dim",
         )
         self.console.print(
             "   [dim]Scores > 100 indicate faster performance. "
@@ -228,14 +263,14 @@ class HyroxAnalyzer:
         )
 
         perf_data = []
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time and avg_time and athlete_time > 0:
                 perf_index = (avg_time / athlete_time) * 100
-                perf_data.append((station_name, perf_index))
+                perf_data.append((event_name, perf_index))
 
-        for station_name, index in sorted(perf_data, key=lambda x: x[1], reverse=True):
+        for event_name, index in sorted(perf_data, key=lambda x: x[1], reverse=True):
             bar_length = int(index / 2.5)
             bar = "█" * bar_length
 
@@ -248,16 +283,15 @@ class HyroxAnalyzer:
             else:
                 status = "[red]▼[/red]"  # Below average
 
-            self.console.print(f"  {station_name:20} {status} {bar} {index:6.1f}")
+            self.console.print(f"  {event_name:20} {status} {bar} {index:6.1f}")
 
         self.console.print()
 
     def _display_heatmap(self) -> None:
         """Show per-event delta vs field average."""
         self.console.print(
-            "[bold cyan]2. WHERE YOU GAIN/LOSE TIME[/bold cyan] — "
+            "[bold yellow]2. WHERE YOU GAIN/LOSE TIME[/bold yellow] — "
             "Per-Event Delta vs Field Average",
-            style="dim",
         )
         self.console.print(
             "   [dim]Red = Losing time relative to field average. "
@@ -269,14 +303,14 @@ class HyroxAnalyzer:
         slower_count = 0
         total_delta_seconds = 0
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time is not None and avg_time is not None:
                 delta_seconds = (athlete_time - avg_time) * 60
                 delta_pct = ((athlete_time - avg_time) / avg_time) * 100
                 total_delta_seconds += delta_seconds
-                self.heatmap_data.append((station_name, delta_seconds, delta_pct))
+                self.heatmap_data.append((event_name, delta_seconds, delta_pct))
                 if delta_seconds < 0:
                     faster_count += 1
                 else:
@@ -293,7 +327,7 @@ class HyroxAnalyzer:
         self.console.print()
 
         # Heatmap rows
-        for station_name, delta_sec, delta_pct in sorted(self.heatmap_data, key=lambda x: x[1]):
+        for event_name, delta_sec, delta_pct in sorted(self.heatmap_data, key=lambda x: x[1]):
             if delta_sec < 0:
                 color = "green"
                 symbol = "✓"
@@ -305,7 +339,7 @@ class HyroxAnalyzer:
             bar = "█" * bar_length
 
             self.console.print(
-                f"  {station_name:20} [{color}]{symbol}[/{color}] "
+                f"  {event_name:20} [{color}]{symbol}[/{color}] "
                 f"[dim]{bar}[/dim] {delta_sec:+6.0f}s ({delta_pct:+6.1f}%)"
             )
 
@@ -314,53 +348,55 @@ class HyroxAnalyzer:
     def _display_cumulative_delta(self) -> None:
         """Show cumulative time delta progression through the race."""
         self.console.print(
-            "[bold cyan]3. CUMULATIVE TIME DELTA[/bold cyan] — "
-            "Your Advantage/Disadvantage Through Race",
-            style="dim",
+            "[bold yellow]3. RACE MOMENTUM[/bold yellow] — "
+            "Running Total: Ahead or Behind the Field",
         )
         self.console.print(
-            "   [dim]Shows momentum: Are you gaining or losing time as the race progresses?[/dim]"
+            "   [dim]Each row shows how that event shifted your gap vs the field, "
+            "and your running total. Green = ahead, Red = behind.[/dim]"
         )
 
         cumulative_data = []
         cumulative_delta = 0
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time is not None and avg_time is not None:
                 delta_seconds = (athlete_time - avg_time) * 60
                 cumulative_delta += delta_seconds
-                cumulative_data.append((station_name[:3].upper(), cumulative_delta))
+                cumulative_data.append((event_name, delta_seconds, cumulative_delta))
 
-        # Try to plot, fallback to ASCII bars
-        try:
-            chart = plotille.plot(
-                list(range(len(cumulative_data))),
-                [val for _, val in cumulative_data],
-                width=80,
-                height=10,
+        if not cumulative_data:
+            return
+
+        max_abs = max(abs(total) for _, _, total in cumulative_data) or 1
+        max_bar = 25
+
+        for event_name, event_delta, running_total in cumulative_data:
+            bar_length = int((abs(running_total) / max_abs) * max_bar)
+            color = "green" if running_total <= 0 else "red"
+            bar = "█" * max(bar_length, 1)
+
+            # Show per-event shift
+            shift_color = "green" if event_delta <= 0 else "red"
+            shift_str = f"[{shift_color}]{event_delta:+.0f}s[/{shift_color}]"
+
+            # Show running total
+            total_label = "ahead" if running_total < 0 else "behind"
+            total_str = f"[{color}]{abs(running_total):.0f}s {total_label}[/{color}]"
+
+            self.console.print(
+                f"  {event_name:20} [{color}]{bar}[/{color}] "
+                f"{shift_str:>20}  →  {total_str}"
             )
-            self.console.print(chart)
-        except Exception:
-            max_cumulative = max(abs(val) for _, val in cumulative_data) or 1
-            for station, val in cumulative_data:
-                bar_length = int(abs(val) / max(1, max_cumulative / 20))
-                if val >= 0:
-                    bar = "█" * bar_length
-                    color = "red"
-                else:
-                    bar = "█" * bar_length
-                    color = "green"
-                self.console.print(f"  {station:3} [{color}]{bar}[/{color}] {val:+7.0f}s")
 
         self.console.print()
 
     def _display_split_analysis(self) -> None:
         """Show where time delta comes from: Runs vs Stations."""
         self.console.print(
-            "[bold cyan]4. WHERE DELTA COMES FROM[/bold cyan] — Runs vs Stations Split",
-            style="dim",
+            "[bold yellow]4. WHERE DELTA COMES FROM[/bold yellow] — Runs vs Stations Split",
         )
         self.console.print(
             "   [dim]Breakdown: Are you slower on runs or at stations? "
@@ -370,13 +406,12 @@ class HyroxAnalyzer:
         run_delta = 0.0
         station_delta = 0.0
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time is not None and avg_time is not None:
                 delta_seconds = (athlete_time - avg_time) * 60
-                # Note: no actual run fields in stations dict, so all go to station_delta
-                if any(run_key in field.lower() for run_key in ["run"]):
+                if field in self.RUN_FIELDS:
                     run_delta += delta_seconds
                 else:
                     station_delta += delta_seconds
@@ -400,9 +435,8 @@ class HyroxAnalyzer:
     def _display_opportunities(self) -> None:
         """Show top 3 events where athlete lost the most time."""
         self.console.print(
-            "[bold cyan]5. BIGGEST OPPORTUNITIES[/bold cyan] — "
+            "[bold yellow]5. BIGGEST OPPORTUNITIES[/bold yellow] — "
             "Events Where You Lost the Most Time",
-            style="dim",
         )
         self.console.print(
             "   [dim]Focus on these events to make the biggest performance gains.[/dim]"
@@ -417,11 +451,11 @@ class HyroxAnalyzer:
 
         if opportunities:
             max_delta = max(opp[1] for opp in opportunities or [1])
-            for i, (station_name, delta_sec, delta_pct) in enumerate(opportunities[:3], 1):
+            for i, (event_name, delta_sec, delta_pct) in enumerate(opportunities[:3], 1):
                 bar_length = int((delta_sec / max_delta) * 25)
                 bar = "█" * bar_length
                 self.console.print(
-                    f"  {i}. {station_name:20} [red]{bar}[/red] "
+                    f"  {i}. {event_name:20} [red]{bar}[/red] "
                     f"[red bold]+{delta_sec:.0f}s[/red bold] ({delta_pct:+.1f}%)"
                 )
         else:
@@ -434,8 +468,7 @@ class HyroxAnalyzer:
     def _display_percentiles(self) -> None:
         """Show athlete's percentile ranking for each station."""
         self.console.print(
-            "[bold cyan]6. PER-EVENT PERCENTILE[/bold cyan] — Your Placement in the Field",
-            style="dim",
+            "[bold yellow]6. PER-EVENT PERCENTILE[/bold yellow] — Your Placement in the Field",
         )
         self.console.print(
             "   [dim]Your ranking at each station. Lower percentile = faster than average.[/dim]"
@@ -443,19 +476,22 @@ class HyroxAnalyzer:
 
         percentile_data = []
 
-        for field, station_name in self.STATIONS.items():
+        for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             if athlete_time is not None:
                 times = [r.get(field) for r in self.race_records if r.get(field) is not None]
                 if times:
                     faster_count = sum(1 for t in times if t < athlete_time)
                     percentile = (faster_count / len(times)) * 100
-                    percentile_data.append((station_name, percentile))
+                    percentile_data.append((event_name, percentile))
 
-        for station_name, percentile in sorted(percentile_data, key=lambda x: x[1]):
+        for event_name, percentile in sorted(percentile_data, key=lambda x: x[1]):
             bar_length = int(percentile / 5)
             bar = "█" * bar_length
-            ranking = f"Top {(100 - percentile):.0f}%"
+            if percentile <= 50:
+                ranking = f"Top {percentile:.0f}%"
+            else:
+                ranking = f"Bottom {(100 - percentile):.0f}%"
 
             # Color code based on performance
             if percentile < 25:
@@ -468,7 +504,7 @@ class HyroxAnalyzer:
                 color = "red"
 
             self.console.print(
-                f"  {station_name:20} [{color}]{bar}[/{color}] "
+                f"  {event_name:20} [{color}]{bar}[/{color}] "
                 f"{percentile:5.0f}th percentile {ranking}"
             )
 
@@ -476,78 +512,34 @@ class HyroxAnalyzer:
 
     def _display_heart_rate_analytics(self) -> None:
         """Display heart rate analytics if available."""
-        self.console.print("\n" + "=" * 88)
-        self.console.print("HEART RATE ANALYTICS", justify="center", style="bold cyan")
-        self.console.print("=" * 88 + "\n")
+        self.console.print()
+        self.console.print("[bold magenta]━━━ HEART RATE ANALYTICS ━━━[/bold magenta]")
+        self.console.print()
 
         self._display_heart_rate_per_station()
         self._display_heart_rate_spikes()
 
     def _display_heart_rate_per_station(self) -> None:
-        """Show average heart rate per station."""
-        if self.heart_rate_data is None or len(self.heart_rate_data) == 0:
+        """Show average heart rate per event."""
+        if not self._hr_avg_values:
             return
 
         self.console.print(
-            "[bold cyan]1. HEART RATE BY STATION[/bold cyan] — Average HR During Each Event",
-            style="dim",
+            "[bold yellow]1. HEART RATE BY STATION[/bold yellow] — Average HR During Each Event",
         )
         self.console.print(
             "   [dim]Understanding intensity: Higher HR = more intense effort.[/dim]"
         )
 
-        # Use the "Avg (count/min)" column
-        if "Avg (count/min)" not in self.heart_rate_data.columns:
-            self.console.print("  [yellow]'Avg (count/min)' column not found in heart_rate.csv[/yellow]")
-            return
+        event_hr_data = self._hr_per_event(self._hr_avg_values, self._hr_max_values)
 
-        try:
-            hr_values = pd.to_numeric(self.heart_rate_data["Avg (count/min)"], errors="coerce").dropna().tolist()
-            max_values = pd.to_numeric(self.heart_rate_data["Max (count/min)"], errors="coerce").dropna().tolist()
-        except Exception:
-            self.console.print("  [yellow]Could not parse heart rate values[/yellow]")
-            return
-
-        if not hr_values:
-            return
-
-        # Cut off data at total race time (data trails at end, not start)
-        # Assuming 1 HR reading per minute
-        if self.total_race_time > 0:
-            hr_during_race = hr_values[:int(self.total_race_time) + 1]
-            max_during_race = max_values[:int(self.total_race_time) + 1]
-        else:
-            hr_during_race = hr_values
-            max_during_race = max_values
-
-        # Calculate HR per station based on cumulative time
-        station_hr_data = []
-        cumulative_time = 0
-
-        for field, station_name in self.STATIONS.items():
-            if self.athlete_record:
-                station_time = self.athlete_record.get(field)
-                if station_time is not None:
-                    start_idx = int(cumulative_time)
-                    end_idx = int(cumulative_time + station_time)
-                    
-                    if start_idx < len(hr_during_race) and end_idx <= len(hr_during_race):
-                        station_hrs = hr_during_race[start_idx:end_idx]
-                        station_maxs = max_during_race[start_idx:end_idx]
-                        if station_hrs:
-                            avg_hr = sum(station_hrs) / len(station_hrs)
-                            max_hr = max(station_maxs) if station_maxs else max(station_hrs)
-                            station_hr_data.append((station_name, avg_hr, max_hr))
-                    
-                    cumulative_time += station_time
-
-        if station_hr_data:
-            max_avg_hr = max(hr for _, hr, _ in station_hr_data)
-            for station_name, avg_hr, max_hr in sorted(station_hr_data, key=lambda x: x[1], reverse=True):
+        if event_hr_data:
+            max_avg_hr = max(hr for _, hr, _ in event_hr_data)
+            for event_name, avg_hr, max_hr in sorted(event_hr_data, key=lambda x: x[1], reverse=True):
                 bar_length = int((avg_hr / max_avg_hr) * 30)
                 bar = "█" * bar_length
                 self.console.print(
-                    f"  {station_name:20} {bar} [yellow]Avg: {avg_hr:.0f}[/yellow] bpm "
+                    f"  {event_name:20} {bar} [yellow]Avg: {avg_hr:.0f}[/yellow] bpm "
                     f"[red](peak: {max_hr:.0f})[/red]"
                 )
 
@@ -555,76 +547,62 @@ class HyroxAnalyzer:
 
     def _display_heart_rate_spikes(self) -> None:
         """Show where heart rate spiked the most."""
-        if self.heart_rate_data is None or len(self.heart_rate_data) == 0:
+        if not self._hr_max_values:
             return
 
         self.console.print(
-            "[bold cyan]2. HEART RATE SPIKES[/bold cyan] — Peak Exertion Moments",
-            style="dim",
+            "[bold yellow]2. HEART RATE SPIKES[/bold yellow] — Peak Exertion Moments",
         )
         self.console.print(
-            "   [dim]Identify which stations caused the most intense cardiovascular effort.[/dim]"
+            "   [dim]Identify which events caused the most intense cardiovascular effort.[/dim]"
         )
 
-        # Use the "Max (count/min)" column for peak HR
-        if "Max (count/min)" not in self.heart_rate_data.columns:
-            self.console.print("  [yellow]'Max (count/min)' column not found in heart_rate.csv[/yellow]")
-            return
-
-        try:
-            max_values = pd.to_numeric(self.heart_rate_data["Max (count/min)"], errors="coerce").dropna().tolist()
-            avg_values = pd.to_numeric(self.heart_rate_data["Avg (count/min)"], errors="coerce").dropna().tolist()
-        except Exception:
-            self.console.print("  [yellow]Could not parse heart rate values[/yellow]")
-            return
-
-        if not max_values:
-            return
-
-        # Cut off data at total race time
-        if self.total_race_time > 0:
-            max_during_race = max_values[:int(self.total_race_time) + 1]
-            avg_during_race = avg_values[:int(self.total_race_time) + 1]
-        else:
-            max_during_race = max_values
-            avg_during_race = avg_values
-
-        # Find HR spikes per station
-        spike_data = []
-        cumulative_time = 0
-
-        for field, station_name in self.STATIONS.items():
-            if self.athlete_record:
-                station_time = self.athlete_record.get(field)
-                if station_time is not None:
-                    start_idx = int(cumulative_time)
-                    end_idx = int(cumulative_time + station_time)
-                    
-                    if start_idx < len(max_during_race) and end_idx <= len(max_during_race):
-                        station_maxs = max_during_race[start_idx:end_idx]
-                        station_avgs = avg_during_race[start_idx:end_idx]
-                        if station_maxs:
-                            max_hr = max(station_maxs)
-                            avg_hr = sum(station_avgs) / len(station_avgs)
-                            spike = max_hr - avg_hr  # Spike magnitude
-                            spike_data.append((station_name, max_hr, spike))
-                    
-                    cumulative_time += station_time
+        spike_data = self._hr_per_event(self._hr_avg_values, self._hr_max_values)
 
         if spike_data:
-            # Show top 3 spikes
-            top_spikes = sorted(spike_data, key=lambda x: x[1], reverse=True)[:3]
-            max_spike_hr = max(hr for _, hr, _ in spike_data)
-            
-            for i, (station_name, peak_hr, spike_magnitude) in enumerate(top_spikes, 1):
-                bar_length = int((peak_hr / max_spike_hr) * 30)
+            top_spikes = sorted(spike_data, key=lambda x: x[2], reverse=True)[:3]
+            max_peak_hr = max(hr for _, hr, _ in spike_data)
+
+            for i, (event_name, _, peak_hr) in enumerate(top_spikes, 1):
+                bar_length = int((peak_hr / max_peak_hr) * 30)
                 bar = "█" * bar_length
                 self.console.print(
-                    f"  {i}. [red bold]{station_name:20}[/red bold] [red]{bar}[/red] "
+                    f"  {i}. [red bold]{event_name:20}[/red bold] [red]{bar}[/red] "
                     f"[red bold]Peak: {peak_hr:.0f}[/red bold] bpm"
                 )
 
         self.console.print()
+
+    def _hr_per_event(
+        self, avg_values: List[float], max_values: List[float]
+    ) -> List[Tuple[str, float, float]]:
+        """Map heart rate data to events based on cumulative time."""
+        results: List[Tuple[str, float, float]] = []
+        cumulative_time = 0
+
+        if not self.athlete_record:
+            return results
+
+        for field, event_name in self.ALL_EVENTS.items():
+            event_time = self.athlete_record.get(field)
+            if event_time is None:
+                continue
+
+            start_idx = int(cumulative_time)
+            end_idx = int(cumulative_time + event_time)
+            cumulative_time += event_time
+
+            if start_idx >= len(avg_values) or end_idx > len(avg_values):
+                continue
+
+            event_avgs = avg_values[start_idx:end_idx]
+            event_maxs = max_values[start_idx:end_idx]
+            if event_avgs:
+                avg_hr = sum(event_avgs) / len(event_avgs)
+                peak_hr = max(event_maxs) if event_maxs else avg_hr
+                results.append((event_name, avg_hr, peak_hr))
+
+        return results
 
     def save_data(self) -> None:
         """Save race data and config to JSON files."""
@@ -657,13 +635,13 @@ def main() -> None:
     
     # Display credits
     console.print()
-    console.print("[bold cyan]🏃 HYROX RACE INSIGHTS[/bold cyan]")
-    console.print("Built by [link=https://jives.dev][bold yellow]Jives (https://Jives.dev)[/bold yellow][/link] with [link=https://pypi.org/project/pyrox-client/][bold yellow]pyrox-client (https://vmatei2.github.io/pyrox-client/)[/bold yellow][/link]")
+    console.print("[bold yellow]━━━ 🏃✨ HYROX RACE INSIGHTS ━━━[/bold yellow]")
+    console.print("Built by [link=https://jives.dev][bold cyan]Jives (https://Jives.dev)[/bold cyan][/link] with [link=https://pypi.org/project/pyrox-client/][bold cyan]pyrox-client (https://vmatei2.github.io/pyrox-client/)[/bold cyan][/link]")
     console.print()
     
     # Load configuration from environment
     season = int(os.environ.get("HYROX_SEASON", "8"))
-    location = os.environ.get("HYROX_LOCATION", "London")
+    location = os.environ.get("HYROX_LOCATION", "Stockholm")
     gender = os.environ.get("HYROX_GENDER", "male")
     division = os.environ.get("HYROX_DIVISION", "open")
     athlete = os.environ.get("HYROX_ATHLETE", "Smith, John")
@@ -680,6 +658,7 @@ def main() -> None:
     analyzer.fetch_data()
     analyzer.display_summary_tables()
     analyzer.display_visualizations()
+    analyzer.save_data()
 
 
 if __name__ == "__main__":

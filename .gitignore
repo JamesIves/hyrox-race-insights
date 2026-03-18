@@ -142,8 +142,6 @@ Thumbs.db
 # Node
 node_modules/
 
-# Generated data (written by stats.py, fetched fresh in CI)
-app/public/data/race.json
-app/public/data/heart_rate.json
-app/public/data/config.json
-app/app/vite
+# Data files
+heart_rate.csv
+data
