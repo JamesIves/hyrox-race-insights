@@ -32,13 +32,13 @@ Configure the tool using the following environment variables to fetch your race 
 **Example:**
 
 ```bash
-HYROX_SEASON=8 HYROX_LOCATION=Washington-DC HYROX_GENDER=male HYROX_DIVISION=open HYROX_ATHLETE="Smith, John" python app.py
+HYROX_SEASON="8" HYROX_LOCATION="Washington-DC" HYROX_GENDER="male" HYROX_DIVISION="open" HYROX_ATHLETE="Smith, John" python app.py
 ```
 
 **Doubles example:**
 
 ```bash
-HYROX_SEASON=8 HYROX_LOCATION=Stockholm HYROX_GENDER=mixed HYROX_DIVISION=doubles HYROX_ATHLETE="John Smith, Jane Doe" python app.py
+HYROX_SEASON="8" HYROX_LOCATION="Stockholm" HYROX_GENDER="mixed" HYROX_DIVISION="doubles" HYROX_ATHLETE="John Smith, Jane Doe" python app.py
 ```
 
 ## Heart Rate Analysis 🫀
@@ -67,3 +67,5 @@ Date/Time,Min (count/min),Max (count/min),Avg (count/min)
 
 > [!TIP]
 > Only the `Avg (count/min)` and `Max (count/min)` columns are required — extra columns are ignored.
+
+![Screenshot](./.github/docs/screenshot.png)
