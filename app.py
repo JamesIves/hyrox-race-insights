@@ -498,7 +498,7 @@ class HyroxAnalyzer:
 
             self.console.print(
                 f"  {event_name:20} [{color}]{bar}[/{color}] "
-                f"{percentile:5.0f}th percentile {ranking}"
+                f"{percentile:5.0f}th percentile ({ranking})"
             )
 
         self.console.print()
