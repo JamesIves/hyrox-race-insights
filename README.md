@@ -19,7 +19,7 @@ python app.py
 
 ### Configuration
 
-Configure the tool using environment variables. All variables are optional and fall back to sensible defaults.
+Configure the tool using the following environment variables to fetch your race data.
 
 | Variable         | Description                                                                                                                                                  | Default       |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
@@ -32,13 +32,13 @@ Configure the tool using environment variables. All variables are optional and f
 **Example:**
 
 ```bash
-HYROX_SEASON=8 HYROX_LOCATION=Washington-DC HYROX_ATHLETE="Smith, John" python app.py
+HYROX_SEASON=8 HYROX_LOCATION=Washington-DC HYROX_GENDER=male HYROX_DIVISION=open HYROX_ATHLETE="Smith, John" python app.py
 ```
 
 **Doubles example:**
 
 ```bash
-HYROX_GENDER=mixed HYROX_DIVISION=doubles HYROX_ATHLETE="John Smith, Jane Doe" python app.py
+HYROX_SEASON=8 HYROX_LOCATION=Stockholm HYROX_GENDER=mixed HYROX_DIVISION=doubles HYROX_ATHLETE="John Smith, Jane Doe" python app.py
 ```
 
 ## Heart Rate Analysis
