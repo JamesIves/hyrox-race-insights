@@ -1,7 +1,7 @@
 """
 Hyrox Race Insights ✨
 
-Fetches race data from Pyrox API and displays comprehensive terminal-based
+Fetches Hyrox race data and displays comprehensive terminal-based
 visualizations comparing an athlete's performance to field averages.
 
 Built by Jives (https://Jives.dev) with pyrox-client (https://vmatei2.github.io/pyrox-client/) 
@@ -16,7 +16,7 @@ Environment Variables:
 
 import json
 import os
-from typing import Dict, List, Tuple, Optional
+from typing import Optional
 
 import pandas as pd
 import pyrox
@@ -27,8 +27,30 @@ from rich.table import Table
 class HyroxAnalyzer:
     """Analyzes Hyrox race data and generates performance insights."""
 
+    # --- Display constants ---
+    PERF_STRONG_THRESHOLD = 105
+    PERF_SLIGHT_THRESHOLD = 100
+    PERF_AVERAGE_THRESHOLD = 95
+    PERF_BAR_SCALE = 2.5
+
+    PERCENTILE_EXCELLENT = 25
+    PERCENTILE_GOOD = 50
+    PERCENTILE_FAIR = 75
+    PERCENTILE_BAR_SCALE = 5
+
+    HEATMAP_BAR_SCALE = 10
+    MOMENTUM_BAR_WIDTH = 25
+    HR_BAR_WIDTH = 30
+    OPPORTUNITY_BAR_WIDTH = 25
+    SPLIT_BAR_SCALE = 5
+
+    TOP_N_OPPORTUNITIES = 3
+    TOP_N_SPIKES = 3
+
+    HR_REQUIRED_COLUMNS = ("Avg (count/min)", "Max (count/min)")
+
     # All events in race order (Run, Station, Run, Station, ...)
-    ALL_EVENTS = {
+    ALL_EVENTS: dict[str, str] = {
         "run1_time": "Run 1",
         "skiErg_time": "SkiErg",
         "run2_time": "Run 2",
@@ -49,7 +71,7 @@ class HyroxAnalyzer:
     }
 
     # Derived subsets
-    RUN_FIELDS = {k for k in ALL_EVENTS if k.startswith("run")}
+    RUN_FIELDS: set[str] = {k for k in ALL_EVENTS if k.startswith("run")}
 
     def __init__(
         self,
@@ -80,14 +102,14 @@ class HyroxAnalyzer:
         self.console = Console()
 
         # Data storage
-        self.race_records: List[Dict] = []
-        self.athlete_record: Optional[Dict] = None
-        self.averages: Dict[str, float] = {}
-        self.heatmap_data: List[Tuple[str, float, float]] = []
+        self.race_records: list[dict[str, object]] = []
+        self.athlete_record: Optional[dict[str, object]] = None
+        self.averages: dict[str, float] = {}
+        self.heatmap_data: list[tuple[str, float, float]] = []
         self.heart_rate_data: Optional[pd.DataFrame] = None
         self.total_race_time: float = 0.0
-        self._hr_avg_values: List[float] = []
-        self._hr_max_values: List[float] = []
+        self._hr_avg_values: list[float] = []
+        self._hr_max_values: list[float] = []
 
     def fetch_data(self) -> None:
         """Fetch race data from Pyrox API."""
@@ -126,11 +148,11 @@ class HyroxAnalyzer:
 
     def _calculate_averages(self) -> None:
         """Calculate field average times for each event."""
-        self.averages = {}
-        for field in self.ALL_EVENTS:
-            times = [r[field] for r in self.race_records if r.get(field) is not None]
-            if times:
-                self.averages[field] = sum(times) / len(times)
+        self.averages = {
+            field: sum(times) / len(times)
+            for field in self.ALL_EVENTS
+            if (times := [r[field] for r in self.race_records if r.get(field) is not None])
+        }
 
     def _load_heart_rate_data(self) -> None:
         """Load heart rate data from CSV if it exists."""
@@ -139,17 +161,28 @@ class HyroxAnalyzer:
             return
 
         try:
-            self.heart_rate_data = pd.read_csv(heart_rate_file)
-
-            if self.athlete_record and "total_time" in self.athlete_record:
-                self.total_race_time = self.athlete_record["total_time"]
-
-            self._parse_heart_rate_columns()
-        except Exception as e:
+            df = pd.read_csv(heart_rate_file)
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, OSError) as e:
             self.console.print(
-                f"[yellow]Warning:[/yellow] Could not load heart rate data: {e}",
+                f"[yellow]Warning:[/yellow] Could not read heart rate CSV: {e}",
                 style="dim",
             )
+            return
+
+        missing = [c for c in self.HR_REQUIRED_COLUMNS if c not in df.columns]
+        if missing:
+            self.console.print(
+                f"[yellow]Warning:[/yellow] Heart rate CSV missing columns: {', '.join(missing)}",
+                style="dim",
+            )
+            return
+
+        self.heart_rate_data = df
+
+        if self.athlete_record and "total_time" in self.athlete_record:
+            self.total_race_time = self.athlete_record["total_time"]
+
+        self._parse_heart_rate_columns()
 
     def _parse_heart_rate_columns(self) -> None:
         """Parse and trim heart rate columns to race duration."""
@@ -160,8 +193,6 @@ class HyroxAnalyzer:
             ("Avg (count/min)", "_hr_avg_values"),
             ("Max (count/min)", "_hr_max_values"),
         ]:
-            if col not in self.heart_rate_data.columns:
-                return
             values = pd.to_numeric(
                 self.heart_rate_data[col], errors="coerce"
             ).dropna().tolist()
@@ -189,13 +220,13 @@ class HyroxAnalyzer:
         table.add_column("Max", style="red")
 
         for field, event_name in self.ALL_EVENTS.items():
-            times = [r.get(field) for r in self.race_records if r.get(field) is not None]
+            times = [r[field] for r in self.race_records if r.get(field) is not None]
             if times:
-                avg = sum(times) / len(times)
-                min_time = min(times)
-                max_time = max(times)
                 table.add_row(
-                    event_name, f"{avg:.2f}m", f"{min_time:.2f}m", f"{max_time:.2f}m"
+                    event_name,
+                    f"{sum(times) / len(times):.2f}m",
+                    f"{min(times):.2f}m",
+                    f"{max(times):.2f}m",
                 )
 
         self.console.print(table)
@@ -216,15 +247,13 @@ class HyroxAnalyzer:
             if athlete_time is not None and avg_time is not None:
                 delta = athlete_time - avg_time
                 delta_pct = (delta / avg_time) * 100
-                delta_str = f"{delta:+.2f}m"
-                pct_str = f"{delta_pct:+.1f}%"
-                delta_color = "green" if delta < 0 else "red"
+                color = self._delta_color(delta)
                 table.add_row(
                     event_name,
                     f"{athlete_time:.2f}m",
                     f"{avg_time:.2f}m",
-                    f"[{delta_color}]{delta_str}[/{delta_color}]",
-                    f"[{delta_color}]{pct_str}[/{delta_color}]",
+                    f"[{color}]{delta:+.2f}m[/{color}]",
+                    f"[{color}]{delta_pct:+.1f}%[/{color}]",
                 )
 
         self.console.print(table)
@@ -262,27 +291,17 @@ class HyroxAnalyzer:
             "Compare strengths and weaknesses at a glance.[/dim]"
         )
 
-        perf_data = []
-        for field, event_name in self.ALL_EVENTS.items():
-            athlete_time = self.athlete_record.get(field)
-            avg_time = self.averages.get(field)
-            if athlete_time and avg_time and athlete_time > 0:
-                perf_index = (avg_time / athlete_time) * 100
-                perf_data.append((event_name, perf_index))
+        perf_data = [
+            (name, (avg / ath) * 100)
+            for field, name in self.ALL_EVENTS.items()
+            if (ath := self.athlete_record.get(field))
+            and (avg := self.averages.get(field))
+            and ath > 0
+        ]
 
         for event_name, index in sorted(perf_data, key=lambda x: x[1], reverse=True):
-            bar_length = int(index / 2.5)
-            bar = "█" * bar_length
-
-            if index > 105:
-                status = "[green]▲▲[/green]"  # Strong advantage
-            elif index > 100:
-                status = "[green]▲[/green]"  # Slight advantage
-            elif index > 95:
-                status = "[yellow]~[/yellow]"  # About average
-            else:
-                status = "[red]▼[/red]"  # Below average
-
+            bar = self._make_bar(index / self.PERF_BAR_SCALE)
+            status = self._perf_status(index)
             self.console.print(f"  {event_name:20} {status} {bar} {index:6.1f}")
 
         self.console.print()
@@ -298,45 +317,26 @@ class HyroxAnalyzer:
             "Green = Gaining time. Focus on red events to improve.[/dim]"
         )
 
-        self.heatmap_data = []
-        faster_count = 0
-        slower_count = 0
-        total_delta_seconds = 0
-
-        for field, event_name in self.ALL_EVENTS.items():
-            athlete_time = self.athlete_record.get(field)
-            avg_time = self.averages.get(field)
-            if athlete_time is not None and avg_time is not None:
-                delta_seconds = (athlete_time - avg_time) * 60
-                delta_pct = ((athlete_time - avg_time) / avg_time) * 100
-                total_delta_seconds += delta_seconds
-                self.heatmap_data.append((event_name, delta_seconds, delta_pct))
-                if delta_seconds < 0:
-                    faster_count += 1
-                else:
-                    slower_count += 1
+        self.heatmap_data = self._compute_event_deltas()
+        faster = sum(1 for _, d, _ in self.heatmap_data if d < 0)
+        slower = len(self.heatmap_data) - faster
+        total_delta = sum(d for _, d, _ in self.heatmap_data)
 
         # Summary line
-        net_style = "green" if total_delta_seconds < 0 else "red"
-        net_emoji = "✓" if total_delta_seconds < 0 else "✗"
+        color = self._delta_color(total_delta)
+        symbol = "✓" if total_delta < 0 else "✗"
         self.console.print(
-            f"  Faster: [green]{faster_count} events[/green] | "
-            f"Slower: [red]{slower_count} events[/red] | "
-            f"Net: [{net_style}]{net_emoji} {total_delta_seconds:+.0f}s[/{net_style}]"
+            f"  Faster: [green]{faster} events[/green] | "
+            f"Slower: [red]{slower} events[/red] | "
+            f"Net: [{color}]{symbol} {total_delta:+.0f}s[/{color}]"
         )
         self.console.print()
 
         # Heatmap rows
         for event_name, delta_sec, delta_pct in sorted(self.heatmap_data, key=lambda x: x[1]):
-            if delta_sec < 0:
-                color = "green"
-                symbol = "✓"
-            else:
-                color = "red"
-                symbol = "✗"
-
-            bar_length = int(abs(delta_sec) / 10)
-            bar = "█" * bar_length
+            color = self._delta_color(delta_sec)
+            symbol = "✓" if delta_sec < 0 else "✗"
+            bar = self._make_bar(abs(delta_sec) / self.HEATMAP_BAR_SCALE)
 
             self.console.print(
                 f"  {event_name:20} [{color}]{symbol}[/{color}] "
@@ -356,33 +356,30 @@ class HyroxAnalyzer:
             "and your running total. Green = ahead, Red = behind.[/dim]"
         )
 
-        cumulative_data = []
-        cumulative_delta = 0
+        cumulative_data: list[tuple[str, float, float]] = []
+        running = 0.0
 
         for field, event_name in self.ALL_EVENTS.items():
             athlete_time = self.athlete_record.get(field)
             avg_time = self.averages.get(field)
             if athlete_time is not None and avg_time is not None:
-                delta_seconds = (athlete_time - avg_time) * 60
-                cumulative_delta += delta_seconds
-                cumulative_data.append((event_name, delta_seconds, cumulative_delta))
+                delta = (athlete_time - avg_time) * 60
+                running += delta
+                cumulative_data.append((event_name, delta, running))
 
         if not cumulative_data:
             return
 
         max_abs = max(abs(total) for _, _, total in cumulative_data) or 1
-        max_bar = 25
 
         for event_name, event_delta, running_total in cumulative_data:
-            bar_length = int((abs(running_total) / max_abs) * max_bar)
-            color = "green" if running_total <= 0 else "red"
-            bar = "█" * max(bar_length, 1)
+            bar_len = int((abs(running_total) / max_abs) * self.MOMENTUM_BAR_WIDTH)
+            color = self._delta_color(running_total)
+            bar = "█" * max(bar_len, 1)
 
-            # Show per-event shift
-            shift_color = "green" if event_delta <= 0 else "red"
+            shift_color = self._delta_color(event_delta)
             shift_str = f"[{shift_color}]{event_delta:+.0f}s[/{shift_color}]"
 
-            # Show running total
             total_label = "ahead" if running_total < 0 else "behind"
             total_str = f"[{color}]{abs(running_total):.0f}s {total_label}[/{color}]"
 
@@ -423,11 +420,11 @@ class HyroxAnalyzer:
 
             self.console.print(
                 f"  Runs:     [yellow]{run_pct:5.0f}%[/yellow] ({run_delta:+7.0f}s) "
-                f"{'█' * int(run_pct / 5)}"
+                f"{self._make_bar(run_pct / self.SPLIT_BAR_SCALE)}"
             )
             self.console.print(
                 f"  Stations: [yellow]{station_pct:5.0f}%[/yellow] ({station_delta:+7.0f}s) "
-                f"{'█' * int(station_pct / 5)}"
+                f"{self._make_bar(station_pct / self.SPLIT_BAR_SCALE)}"
             )
 
         self.console.print()
@@ -442,18 +439,20 @@ class HyroxAnalyzer:
             "   [dim]Focus on these events to make the biggest performance gains.[/dim]"
         )
 
-        opportunities = [
-            (name, delta_sec, delta_pct)
-            for name, delta_sec, delta_pct in self.heatmap_data
-            if delta_sec > 0
-        ]
-        opportunities.sort(key=lambda x: x[1], reverse=True)
+        opportunities = sorted(
+            [(n, d, p) for n, d, p in self.heatmap_data if d > 0],
+            key=lambda x: x[1],
+            reverse=True,
+        )
 
         if opportunities:
-            max_delta = max(opp[1] for opp in opportunities or [1])
-            for i, (event_name, delta_sec, delta_pct) in enumerate(opportunities[:3], 1):
-                bar_length = int((delta_sec / max_delta) * 25)
-                bar = "█" * bar_length
+            max_delta = opportunities[0][1]
+            for i, (event_name, delta_sec, delta_pct) in enumerate(
+                opportunities[: self.TOP_N_OPPORTUNITIES], 1
+            ):
+                bar = self._make_bar(
+                    (delta_sec / max_delta) * self.OPPORTUNITY_BAR_WIDTH
+                )
                 self.console.print(
                     f"  {i}. {event_name:20} [red]{bar}[/red] "
                     f"[red bold]+{delta_sec:.0f}s[/red bold] ({delta_pct:+.1f}%)"
@@ -474,34 +473,17 @@ class HyroxAnalyzer:
             "   [dim]Your ranking at each station. Lower percentile = faster than average.[/dim]"
         )
 
-        percentile_data = []
-
-        for field, event_name in self.ALL_EVENTS.items():
-            athlete_time = self.athlete_record.get(field)
-            if athlete_time is not None:
-                times = [r.get(field) for r in self.race_records if r.get(field) is not None]
-                if times:
-                    faster_count = sum(1 for t in times if t < athlete_time)
-                    percentile = (faster_count / len(times)) * 100
-                    percentile_data.append((event_name, percentile))
+        percentile_data = [
+            (name, self._calculate_percentile(field))
+            for field, name in self.ALL_EVENTS.items()
+            if self.athlete_record.get(field) is not None
+            and self._calculate_percentile(field) is not None
+        ]
 
         for event_name, percentile in sorted(percentile_data, key=lambda x: x[1]):
-            bar_length = int(percentile / 5)
-            bar = "█" * bar_length
-            if percentile <= 50:
-                ranking = f"Top {percentile:.0f}%"
-            else:
-                ranking = f"Bottom {(100 - percentile):.0f}%"
-
-            # Color code based on performance
-            if percentile < 25:
-                color = "green"
-            elif percentile < 50:
-                color = "yellow"
-            elif percentile < 75:
-                color = "red"
-            else:
-                color = "red"
+            bar = self._make_bar(percentile / self.PERCENTILE_BAR_SCALE)
+            color = self._percentile_color(percentile)
+            ranking = self._percentile_label(percentile)
 
             self.console.print(
                 f"  {event_name:20} [{color}]{bar}[/{color}] "
@@ -535,9 +517,12 @@ class HyroxAnalyzer:
 
         if event_hr_data:
             max_avg_hr = max(hr for _, hr, _ in event_hr_data)
-            for event_name, avg_hr, max_hr in sorted(event_hr_data, key=lambda x: x[1], reverse=True):
-                bar_length = int((avg_hr / max_avg_hr) * 30)
-                bar = "█" * bar_length
+            for event_name, avg_hr, max_hr in sorted(
+                event_hr_data, key=lambda x: x[1], reverse=True
+            ):
+                bar = self._make_bar(
+                    (avg_hr / max_avg_hr) * self.HR_BAR_WIDTH
+                )
                 self.console.print(
                     f"  {event_name:20} {bar} [yellow]Avg: {avg_hr:.0f}[/yellow] bpm "
                     f"[red](peak: {max_hr:.0f})[/red]"
@@ -560,12 +545,15 @@ class HyroxAnalyzer:
         spike_data = self._hr_per_event(self._hr_avg_values, self._hr_max_values)
 
         if spike_data:
-            top_spikes = sorted(spike_data, key=lambda x: x[2], reverse=True)[:3]
+            top_spikes = sorted(
+                spike_data, key=lambda x: x[2], reverse=True
+            )[: self.TOP_N_SPIKES]
             max_peak_hr = max(hr for _, hr, _ in spike_data)
 
             for i, (event_name, _, peak_hr) in enumerate(top_spikes, 1):
-                bar_length = int((peak_hr / max_peak_hr) * 30)
-                bar = "█" * bar_length
+                bar = self._make_bar(
+                    (peak_hr / max_peak_hr) * self.HR_BAR_WIDTH
+                )
                 self.console.print(
                     f"  {i}. [red bold]{event_name:20}[/red bold] [red]{bar}[/red] "
                     f"[red bold]Peak: {peak_hr:.0f}[/red bold] bpm"
@@ -573,11 +561,71 @@ class HyroxAnalyzer:
 
         self.console.print()
 
+    # --- Helper methods ---
+
+    @staticmethod
+    def _delta_color(value: float) -> str:
+        """Return 'green' for negative/zero deltas, 'red' for positive."""
+        return "green" if value <= 0 else "red"
+
+    @staticmethod
+    def _make_bar(length: float) -> str:
+        """Generate a block-character bar of the given length."""
+        return "█" * max(int(length), 0)
+
+    def _perf_status(self, index: float) -> str:
+        """Return a Rich-formatted status icon for a performance index score."""
+        if index > self.PERF_STRONG_THRESHOLD:
+            return "[green]▲▲[/green]"
+        if index > self.PERF_SLIGHT_THRESHOLD:
+            return "[green]▲[/green]"
+        if index > self.PERF_AVERAGE_THRESHOLD:
+            return "[yellow]~[/yellow]"
+        return "[red]▼[/red]"
+
+    def _percentile_color(self, percentile: float) -> str:
+        """Return a color string for a percentile value."""
+        if percentile < self.PERCENTILE_EXCELLENT:
+            return "green"
+        if percentile < self.PERCENTILE_GOOD:
+            return "yellow"
+        return "red"
+
+    @staticmethod
+    def _percentile_label(percentile: float) -> str:
+        """Return a human-readable ranking label."""
+        if percentile <= 50:
+            return f"Top {percentile:.0f}%"
+        return f"Bottom {100 - percentile:.0f}%"
+
+    def _calculate_percentile(self, field: str) -> Optional[float]:
+        """Calculate the athlete's percentile for a single event field."""
+        athlete_time = self.athlete_record.get(field)
+        if athlete_time is None:
+            return None
+        times = [r[field] for r in self.race_records if r.get(field) is not None]
+        if not times:
+            return None
+        faster_count = sum(1 for t in times if t < athlete_time)
+        return (faster_count / len(times)) * 100
+
+    def _compute_event_deltas(self) -> list[tuple[str, float, float]]:
+        """Compute per-event delta (seconds) and delta percentage vs field average."""
+        deltas: list[tuple[str, float, float]] = []
+        for field, event_name in self.ALL_EVENTS.items():
+            athlete_time = self.athlete_record.get(field)
+            avg_time = self.averages.get(field)
+            if athlete_time is not None and avg_time is not None:
+                delta_sec = (athlete_time - avg_time) * 60
+                delta_pct = ((athlete_time - avg_time) / avg_time) * 100
+                deltas.append((event_name, delta_sec, delta_pct))
+        return deltas
+
     def _hr_per_event(
-        self, avg_values: List[float], max_values: List[float]
-    ) -> List[Tuple[str, float, float]]:
+        self, avg_values: list[float], max_values: list[float]
+    ) -> list[tuple[str, float, float]]:
         """Map heart rate data to events based on cumulative time."""
-        results: List[Tuple[str, float, float]] = []
+        results: list[tuple[str, float, float]] = []
         cumulative_time = 0
 
         if not self.athlete_record:

@@ -143,5 +143,5 @@ Thumbs.db
 node_modules/
 
 # Data files
-heart_rate.csv
+*.csv
 data
