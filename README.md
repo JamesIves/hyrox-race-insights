@@ -2,7 +2,7 @@
 
 <img align="right" width="128" height="auto"  src="./.github/docs/icon.png" alt="Icon">
 
-A terminal-based analytics tool that visualizes your Hyrox race data, highlights strengths and weaknesses, and provides actionable insights to help you improve your time.
+A terminal-based analytics tool that visualizes your [Hyrox](https://hyrox.com/) race data, highlights strengths and weaknesses, and provides actionable insights to help you improve your time.
 
 Special thank you to all the past and present [GitHub Sponsors](https://github.com/sponsors/JamesIves) 💖.
 
@@ -66,4 +66,4 @@ Date/Time,Min (count/min),Max (count/min),Avg (count/min)
 ```
 
 > [!TIP]
-> You can export this format from Apple Health by exporting heart rate data during your race window. Only the `Avg (count/min)` and `Max (count/min)` columns are required — extra columns are ignored.
+> Only the `Avg (count/min)` and `Max (count/min)` columns are required — extra columns are ignored.
