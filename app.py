@@ -9,9 +9,13 @@ Built by Jives (https://Jives.dev) with pyrox-client (https://vmatei2.github.io/
 Environment Variables:
     HYROX_SEASON: Race season (default: "8")
     HYROX_LOCATION: Race location, locations with two words should be hyphenated (default: "Stockholm")
+    HYROX_YEAR: Race year, useful when a location hosted races across multiple years in a season (default: None)
     HYROX_GENDER: Athlete gender (default: "male")
     HYROX_DIVISION: Race division (default: "open")
     HYROX_ATHLETE: Athlete name as it appears on the Hyrox results board, typically "Last, First" format. Can also be "First Last, First Last" for doubles (default: "Smith, John")
+    HYROX_AGE_GROUP: Filter results to a specific age group e.g. "25-29", "30-34" (default: None – all age groups)
+    HYROX_TOTAL_TIME: Filter athletes by total race time in minutes. Single value for max, or "min,max" for a range e.g. "60,90" (default: None)
+    HYROX_HEART_RATE_FILE: Path to the heart rate CSV file (default: "heart_rate.csv")
 """
 
 import json
@@ -23,9 +27,52 @@ import pyrox
 from rich.console import Console
 from rich.table import Table
 
+# ISO 3166-1 alpha-3 country code to flag emoji mapping
+COUNTRY_FLAGS: dict[str, str] = {
+    "AFG": "🇦🇫", "ALB": "🇦🇱", "ALG": "🇩🇿", "AND": "🇦🇩", "ANG": "🇦🇴",
+    "ANT": "🇦🇬", "ARG": "🇦🇷", "ARM": "🇦🇲", "AUS": "🇦🇺", "AUT": "🇦🇹",
+    "AZE": "🇦🇿", "BAH": "🇧🇸", "BAN": "🇧🇩", "BAR": "🇧🇧", "BDI": "🇧🇮",
+    "BEL": "🇧🇪", "BEN": "🇧🇯", "BER": "🇧🇲", "BHU": "🇧🇹", "BIH": "🇧🇦",
+    "BLR": "🇧🇾", "BOL": "🇧🇴", "BOT": "🇧🇼", "BRA": "🇧🇷", "BRN": "🇧🇭",
+    "BRU": "🇧🇳", "BUL": "🇧🇬", "BUR": "🇧🇫", "CAM": "🇰🇭", "CAN": "🇨🇦",
+    "CAY": "🇰🇾", "CGO": "🇨🇬", "CHA": "🇹🇩", "CHI": "🇨🇱", "CHN": "🇨🇳",
+    "CIV": "🇨🇮", "CMR": "🇨🇲", "COD": "🇨🇩", "COL": "🇨🇴", "COM": "🇰🇲",
+    "CPV": "🇨🇻", "CRC": "🇨🇷", "CRO": "🇭🇷", "CUB": "🇨🇺", "CYP": "🇨🇾",
+    "CZE": "🇨🇿", "DEN": "🇩🇰", "DJI": "🇩🇯", "DMA": "🇩🇲", "DOM": "🇩🇴",
+    "ECU": "🇪🇨", "EGY": "🇪🇬", "ERI": "🇪🇷", "ESA": "🇸🇻", "ESP": "🇪🇸",
+    "EST": "🇪🇪", "ETH": "🇪🇹", "FIJ": "🇫🇯", "FIN": "🇫🇮", "FRA": "🇫🇷",
+    "GAB": "🇬🇦", "GAM": "🇬🇲", "GBR": "🇬🇧", "GEO": "🇬🇪", "GER": "🇩🇪",
+    "GHA": "🇬🇭", "GRE": "🇬🇷", "GRN": "🇬🇩", "GUA": "🇬🇹", "GUI": "🇬🇳",
+    "GUM": "🇬🇺", "GUY": "🇬🇾", "HAI": "🇭🇹", "HKG": "🇭🇰", "HON": "🇭🇳",
+    "HUN": "🇭🇺", "INA": "🇮🇩", "IND": "🇮🇳", "IRI": "🇮🇷", "IRL": "🇮🇪",
+    "IRQ": "🇮🇶", "ISL": "🇮🇸", "ISR": "🇮🇱", "ISV": "🇻🇮", "ITA": "🇮🇹",
+    "JAM": "🇯🇲", "JOR": "🇯🇴", "JPN": "🇯🇵", "KAZ": "🇰🇿", "KEN": "🇰🇪",
+    "KGZ": "🇰🇬", "KOR": "🇰🇷", "KOS": "🇽🇰", "KSA": "🇸🇦", "KUW": "🇰🇼",
+    "LAO": "🇱🇦", "LAT": "🇱🇻", "LBA": "🇱🇾", "LBN": "🇱🇧", "LBR": "🇱🇷",
+    "LCA": "🇱🇨", "LES": "🇱🇸", "LIE": "🇱🇮", "LTU": "🇱🇹", "LUX": "🇱🇺",
+    "MAD": "🇲🇬", "MAR": "🇲🇦", "MAS": "🇲🇾", "MAW": "🇲🇼", "MDA": "🇲🇩",
+    "MDV": "🇲🇻", "MEX": "🇲🇽", "MGL": "🇲🇳", "MKD": "🇲🇰", "MLI": "🇲🇱",
+    "MLT": "🇲🇹", "MNE": "🇲🇪", "MON": "🇲🇨", "MOZ": "🇲🇿", "MRI": "🇲🇺",
+    "MTN": "🇲🇷", "MYA": "🇲🇲", "NAM": "🇳🇦", "NCA": "🇳🇮", "NED": "🇳🇱",
+    "NEP": "🇳🇵", "NGR": "🇳🇬", "NIG": "🇳🇪", "NOR": "🇳🇴", "NZL": "🇳🇿",
+    "OMA": "🇴🇲", "PAK": "🇵🇰", "PAN": "🇵🇦", "PAR": "🇵🇾", "PER": "🇵🇪",
+    "PHI": "🇵🇭", "PLE": "🇵🇸", "PLW": "🇵🇼", "PNG": "🇵🇬", "POL": "🇵🇱",
+    "POR": "🇵🇹", "PRK": "🇰🇵", "PUR": "🇵🇷", "QAT": "🇶🇦", "ROU": "🇷🇴",
+    "RSA": "🇿🇦", "RUS": "🇷🇺", "RWA": "🇷🇼", "SAM": "🇼🇸", "SEN": "🇸🇳",
+    "SIN": "🇸🇬", "SKN": "🇰🇳", "SLE": "🇸🇱", "SLO": "🇸🇮", "SMR": "🇸🇲",
+    "SOL": "🇸🇧", "SOM": "🇸🇴", "SRB": "🇷🇸", "SRI": "🇱🇰", "STP": "🇸🇹",
+    "SUD": "🇸🇩", "SUI": "🇨🇭", "SUR": "🇸🇷", "SVK": "🇸🇰", "SWE": "🇸🇪",
+    "SWZ": "🇸🇿", "SYR": "🇸🇾", "TAN": "🇹🇿", "TGA": "🇹🇴", "THA": "🇹🇭",
+    "TJK": "🇹🇯", "TKM": "🇹🇲", "TLS": "🇹🇱", "TOG": "🇹🇬", "TPE": "🇹🇼",
+    "TTO": "🇹🇹", "TUN": "🇹🇳", "TUR": "🇹🇷", "TUV": "🇹🇻", "UAE": "🇦🇪",
+    "UGA": "🇺🇬", "UKR": "🇺🇦", "URU": "🇺🇾", "USA": "🇺🇸", "UZB": "🇺🇿",
+    "VAN": "🇻🇺", "VEN": "🇻🇪", "VIE": "🇻🇳", "YEM": "🇾🇪", "ZAM": "🇿🇲",
+    "ZIM": "🇿🇼",
+}
 
-class HyroxAnalyzer:
-    """Analyzes Hyrox race data and generates performance insights."""
+
+class HyroxRaceInsights:
+    """Analyses Hyrox race data and generates performance insights."""
 
     # --- Display constants ---
     PERF_STRONG_THRESHOLD = 105
@@ -81,9 +128,13 @@ class HyroxAnalyzer:
         division: str,
         athlete_name: str,
         output_dir: str = "data",
+        year: Optional[int] = None,
+        age_group: Optional[str] = None,
+        total_time: Optional[float | tuple[float | None, float | None]] = None,
+        heart_rate_file: str = "heart_rate.csv",
     ):
         """
-        Initialize the analyzer with race parameters.
+        Initialize the Analyser with race parameters.
 
         Args:
             season: Race season number
@@ -92,6 +143,10 @@ class HyroxAnalyzer:
             division: Division category
             athlete_name: Athlete name for comparison
             output_dir: Directory to save JSON output files
+            year: Optional race year filter
+            age_group: Optional age group filter (e.g. "25-29")
+            total_time: Optional total time filter (max minutes, or (min, max) tuple)
+            heart_rate_file: Path to heart rate CSV file
         """
         self.season = season
         self.location = location
@@ -99,6 +154,10 @@ class HyroxAnalyzer:
         self.division = division
         self.athlete_name = athlete_name
         self.output_dir = output_dir
+        self.year = year
+        self.age_group = age_group
+        self.total_time = total_time
+        self.heart_rate_file = heart_rate_file
         self.console = Console()
 
         # Data storage
@@ -113,21 +172,50 @@ class HyroxAnalyzer:
 
     def fetch_data(self) -> None:
         """Fetch race data from Pyrox API."""
-        self.console.print(
-            f"Fetching season {self.season} {self.location} "
-            f"({self.gender.capitalize()} {self.division.capitalize()})...",
-            style="bold cyan",
-        )
+        fetch_label = f"Fetching Season {self.season}"
+        if self.year is not None:
+            fetch_label += f" ({self.year})"
+        fetch_label += f" {self.location} ({self.gender.capitalize()} {self.division.capitalize()})"
+        if self.age_group:
+            fetch_label += f" [Age Group: {self.age_group}]"
+        if self.total_time is not None:
+            if isinstance(self.total_time, tuple):
+                min_time, max_time = self.total_time
+                if min_time is not None and max_time is not None:
+                    fetch_label += f" [Time: {min_time:.0f}-{max_time:.0f}m]"
+                elif min_time is not None:
+                    fetch_label += f" [Time: ≥{min_time:.0f}m]"
+                elif max_time is not None:
+                    fetch_label += f" [Time: ≤{max_time:.0f}m]"
+            else:
+                fetch_label += f" [Time: ≤{self.total_time:.0f}m]"
+        fetch_label += "..."
+
+        self.console.print(fetch_label, style="bold cyan")
+        self.console.print()
 
         client = pyrox.PyroxClient()
-        race = client.get_race(
-            season=self.season,
-            location=self.location,
-            gender=self.gender,
-            division=self.division,
-        )
+        race_params: dict[str, object] = {
+            "season": self.season,
+            "location": self.location,
+            "gender": self.gender,
+            "division": self.division,
+        }
+        if self.year is not None:
+            race_params["year"] = self.year
+        if self.total_time is not None:
+            race_params["total_time"] = self.total_time
+
+        race = client.get_race(**race_params)
 
         self.race_records = race.to_dict(orient="records")
+
+        if self.age_group:
+            self.race_records = [
+                record for record in self.race_records
+                if str(record.get("age_group", "")).lower() == self.age_group.lower()
+            ]
+
         self._find_athlete()
         self._calculate_averages()
         self._load_heart_rate_data()
@@ -158,7 +246,7 @@ class HyroxAnalyzer:
 
     def _load_heart_rate_data(self) -> None:
         """Load heart rate data from CSV if it exists."""
-        heart_rate_file = "heart_rate.csv"
+        heart_rate_file = self.heart_rate_file
         if not os.path.exists(heart_rate_file):
             return
 
@@ -234,9 +322,29 @@ class HyroxAnalyzer:
         self.console.print(table)
         self.console.print()
 
+    def _get_athlete_display_name(self) -> str:
+        """Return athlete name with nationality flag(s) if available.
+
+        Supports doubles where nationality is comma-separated (e.g. "USA, GBR")
+        and names are comma-separated (e.g. "Jane Doe, John Smith").
+        """
+        if self.athlete_record:
+            nationalities = [
+                n.strip().upper()
+                for n in str(self.athlete_record.get("nationality", "")).split(",")
+                if n.strip()
+            ]
+            names = [n.strip() for n in self.athlete_name.split(",") if n.strip()]
+            parts = []
+            for i, name in enumerate(names):
+                flag = COUNTRY_FLAGS.get(nationalities[i], "") if i < len(nationalities) else ""
+                parts.append(f"{flag} {name}" if flag else name)
+            return ", ".join(parts)
+        return self.athlete_name
+
     def _display_athlete_comparison_table(self) -> None:
         """Show athlete times vs field averages."""
-        table = Table(title=f"Athlete Comparison - {self.athlete_name}")
+        table = Table(title=f"Athlete Comparison - {self._get_athlete_display_name()}")
         table.add_column("Event", style="cyan")
         table.add_column("Your Time", style="yellow")
         table.add_column("Field Avg", style="magenta")
@@ -719,20 +827,42 @@ def main() -> None:
     gender = os.environ.get("HYROX_GENDER", "male")
     division = os.environ.get("HYROX_DIVISION", "open")
     athlete = os.environ.get("HYROX_ATHLETE", "Smith, John")
+    heart_rate_file = os.environ.get("HYROX_HEART_RATE_FILE", "heart_rate.csv")
+    age_group = os.environ.get("HYROX_AGE_GROUP")
 
-    # Create analyzer and run analysis
-    analyzer = HyroxAnalyzer(
+    year: Optional[int] = None
+    year_env = os.environ.get("HYROX_YEAR")
+    if year_env:
+        year = int(year_env)
+
+    total_time: Optional[float | tuple[float | None, float | None]] = None
+    total_time_env = os.environ.get("HYROX_TOTAL_TIME")
+    if total_time_env:
+        time_parts = total_time_env.split(",")
+        if len(time_parts) == 1:
+            total_time = float(time_parts[0])
+        elif len(time_parts) == 2:
+            min_time = float(time_parts[0]) if time_parts[0].strip() else None
+            max_time = float(time_parts[1]) if time_parts[1].strip() else None
+            total_time = (min_time, max_time)
+
+    # Create Analyser and run analysis
+    Analyser = HyroxRaceInsights(
         season=season,
         location=location,
         gender=gender,
         division=division,
         athlete_name=athlete,
+        year=year,
+        age_group=age_group,
+        total_time=total_time,
+        heart_rate_file=heart_rate_file,
     )
 
-    analyzer.fetch_data()
-    analyzer.display_summary_tables()
-    analyzer.display_visualizations()
-    analyzer.save_data()
+    Analyser.fetch_data()
+    Analyser.display_summary_tables()
+    Analyser.display_visualizations()
+    Analyser.save_data()
 
 
 if __name__ == "__main__":
