@@ -25,7 +25,7 @@ Configure the tool using the following environment variables to fetch your race 
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
 | `HYROX_SEASON`   | Race season number                                                                                                                                           | `8`           |
 | `HYROX_LOCATION` | Race location. Multi-word locations should be hyphenated (e.g. `Washington-DC`)                                                                              | `Stockholm`   |
-| `HYROX_GENDER`   | Athlete gender (`male`, `female`, or `mixed` for doubles)                                                                                                    | `male`        |
+| `HYROX_GENDER`   | Athlete gender (`male`, `female`, or `mixed` for mixed doubles)                                                                                              | `male`        |
 | `HYROX_DIVISION` | Race division (`open`, `pro`, `doubles`, `pro_doubles`)                                                                                                      | `open`        |
 | `HYROX_ATHLETE`  | Athlete name as it appears on the [Hyrox results board](https://results.hyrox.com), typically `Last, First` format. For doubles use `First Last, First Last` | `Smith, John` |
 
@@ -38,12 +38,18 @@ HYROX_SEASON="8" HYROX_LOCATION="Washington-DC" HYROX_GENDER="male" HYROX_DIVISI
 **Doubles example:**
 
 ```bash
+HYROX_SEASON="8" HYROX_LOCATION="Stockholm" HYROX_GENDER="female" HYROX_DIVISION="doubles" HYROX_ATHLETE="Jane Doe, Jane Doe" python app.py
+```
+
+**Mixed Doubles example:**
+
+```bash
 HYROX_SEASON="8" HYROX_LOCATION="Stockholm" HYROX_GENDER="mixed" HYROX_DIVISION="doubles" HYROX_ATHLETE="John Smith, Jane Doe" python app.py
 ```
 
 ## Heart Rate Analysis 🫀
 
-You can optionally include heart rate data to get per-event HR breakdowns and spike analysis. Place a file called `heart_rate.csv` in the project root before running the tool.
+You can optionally include heart rate data to get per-event heart rate breakdowns and spike analysis. Place a file called `heart_rate.csv` in the project root before running the tool.
 
 ### CSV Format
 
